@@ -278,6 +278,10 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
 
     pl->SendMailResult(0, MAIL_SEND, MAIL_OK);
 
+	// if same guild, refund mail cost. 
+	if (pl->GetGuildId() == receive->GetGuildId()) {
+		reqmoney -= cost;
+	}
     pl->ModifyMoney(-int32(reqmoney));
     pl->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_GOLD_SPENT_FOR_MAIL, cost);
 
@@ -310,7 +314,7 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
             }
 
             // if item send to character at another account, then apply item delivery delay
-            needItemDelay = pl->GetSession()->GetAccountId() != rc_account;
+			needItemDelay = (pl->GetSession()->GetAccountId() != rc_account) && (pl->GetGuildId() != receive->GetGuildId());
         }
 
         if (money > 0 &&  GetSecurity() > SEC_PLAYER && sWorld.getConfig(CONFIG_BOOL_GM_LOG_TRADE))
@@ -321,7 +325,7 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
     }
 
     // If theres is an item, there is a one hour delivery delay if sent to another account's character.
-    uint32 deliver_delay = needItemDelay ? sWorld.getConfig(CONFIG_UINT32_MAIL_DELIVERY_DELAY) : 0;
+	uint32 deliver_delay = needItemDelay ? sWorld.getConfig(CONFIG_UINT32_MAIL_DELIVERY_DELAY) : 0;
 
     // will delete item or place to receiver mail list
     draft
