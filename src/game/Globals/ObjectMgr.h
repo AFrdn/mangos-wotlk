@@ -600,7 +600,8 @@ class ObjectMgr
         int32 GetPlayerMapIdByGUID(ObjectGuid const& guid) const;
         bool GetPlayerNameByGUID(ObjectGuid guid, std::string& name) const;
         Team GetPlayerTeamByGUID(ObjectGuid guid) const;
-        uint32 GetPlayerAccountIdByGUID(ObjectGuid guid) const;
+		uint32 GetPlayerGuildByGUID(ObjectGuid guid) const;
+		uint32 GetPlayerAccountIdByGUID(ObjectGuid guid) const;
         uint32 GetPlayerAccountIdByPlayerName(const std::string& name) const;
 
         bool AddTaxiShortcut(const TaxiPathEntry* path, uint32 lengthTakeoff, uint32 lengthLanding);

@@ -1889,6 +1889,24 @@ Team ObjectMgr::GetPlayerTeamByGUID(ObjectGuid guid) const
     return TEAM_NONE;
 }
 
+uint32 ObjectMgr::GetPlayerGuildByGUID(ObjectGuid guid) const
+{
+	// prevent DB access for online player
+	if (Player* player = GetPlayer(guid))
+		return player->GetGuildId();
+
+	uint32 lowguid = guid.GetCounter();
+
+	QueryResult* result = CharacterDatabase.PQuery("SELECT guildid FROM guild_member WHERE guid = '%u'", lowguid);
+
+	if (result)
+	{
+		uint32 guildId = (*result)[0].GetUInt32();
+		return guildId;		
+	}
+
+	return GUILD_NONE;
+}
 uint32 ObjectMgr::GetPlayerAccountIdByGUID(ObjectGuid guid) const
 {
     if (!guid.IsPlayer())
