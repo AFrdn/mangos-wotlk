@@ -37,6 +37,8 @@
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
 #include "Chat/Chat.h"
+#include "Guilds/GuildMgr.h"
+#include "Guilds/Guild.h"
 
 bool WorldSession::CheckMailBox(ObjectGuid guid) const
 {
@@ -192,18 +194,21 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
     }
 
     Player* receive = sObjectMgr.GetPlayer(rc);
-
+	
     Team rc_team;
+	uint32 rc_guildId;
     uint8 mails_count = 0;                                  // do not allow to send to one player more than 100 mails
 
     if (receive)
     {
         rc_team = receive->GetTeam();
+		rc_guildId = receive->GetGuildId();
         mails_count = receive->GetMailSize();
     }
     else
     {
         rc_team = sObjectMgr.GetPlayerTeamByGUID(rc);
+		rc_guildId = sObjectMgr.GetPlayerGuildByGUID(rc);
         if (QueryResult* result = CharacterDatabase.PQuery("SELECT COUNT(*) FROM mail WHERE receiver = '%u'", rc.GetCounter()))
         {
             Field* fields = result->Fetch();
@@ -279,7 +284,7 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
     pl->SendMailResult(0, MAIL_SEND, MAIL_OK);
 
 	// if same guild, refund mail cost. 
-	if (pl->GetGuildId() == receive->GetGuildId()) {
+	if (pl->GetGuildId() == rc_guildId) {
 		reqmoney -= cost;
 	}
     pl->ModifyMoney(-int32(reqmoney));
@@ -314,7 +319,7 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
             }
 
             // if item send to character at another account, then apply item delivery delay
-			needItemDelay = (pl->GetSession()->GetAccountId() != rc_account) && (pl->GetGuildId() != receive->GetGuildId());
+			needItemDelay = (pl->GetSession()->GetAccountId() != rc_account) && (pl->GetGuildId() != rc_guildId);
         }
 
         if (money > 0 &&  GetSecurity() > SEC_PLAYER && sWorld.getConfig(CONFIG_BOOL_GM_LOG_TRADE))

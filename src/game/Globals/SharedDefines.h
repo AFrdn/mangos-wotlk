@@ -642,6 +642,8 @@ enum Team
     ALLIANCE            = 469,
 };
 
+#define GUILD_NONE 0
+
 enum PvpTeamIndex
 {
     TEAM_INDEX_ALLIANCE = 0,
