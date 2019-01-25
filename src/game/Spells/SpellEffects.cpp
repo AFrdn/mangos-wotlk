@@ -6011,7 +6011,7 @@ void Spell::EffectOpenLock(SpellEffectIndex eff_idx)
             if (BattleGround* bg = player->GetBattleGround())
             {
                 // check if it's correct bg
-                if (bg->GetTypeID() == BATTLEGROUND_AB || bg->GetTypeID() == BATTLEGROUND_AV || bg->GetTypeID() == BATTLEGROUND_SA)
+                if (bg->GetTypeID() == BATTLEGROUND_AB || bg->GetTypeID() == BATTLEGROUND_AV || bg->GetTypeID() == BATTLEGROUND_SA || bg->GetTypeID() == BATTLEGROUND_IC)
                     bg->EventPlayerClickedOnFlag(player, gameObjTarget);
                 return;
             }
@@ -7216,12 +7216,10 @@ void Spell::EffectLearnSkill(SpellEffectIndex eff_idx)
 
     uint16 skillid =  uint16(m_spellInfo->EffectMiscValue[eff_idx]);
     uint16 step = uint16(damage);
-    uint16 current = std::max(uint16(1), target->GetSkillValuePure(skillid));
-    uint16 max = (step * 75);
-    target->SetSkill(skillid, current, max, step);
+    target->SetSkillStep(skillid, step);
 
     if (WorldObject const* caster = GetCastingObject())
-        DEBUG_LOG("Spell: %s has learned skill %u (to maxlevel %u) from %s", target->GetGuidStr().c_str(), skillid, max, caster->GetGuidStr().c_str());
+        DEBUG_LOG("Spell: %s has learned skill %u (to step %u) from %s", target->GetGuidStr().c_str(), skillid, step, caster->GetGuidStr().c_str());
 }
 
 void Spell::EffectAddHonor(SpellEffectIndex /*eff_idx*/)
@@ -12538,6 +12536,9 @@ void Spell::EffectPlayerPull(SpellEffectIndex eff_idx)
     float x, y, z;
     m_caster->GetPosition(x, y, z);
     float dist = unitTarget->GetDistance(m_caster, false);
+
+    if (dist < 0.1f)
+        return;
 
     // Projectile motion
     float speedXY = float(m_spellInfo->EffectMiscValue[eff_idx]) * 0.1f;

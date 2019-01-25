@@ -1586,7 +1586,7 @@ bool ChatHandler::HandleMaxSkillCommand(char* /*args*/)
     }
 
     // each skills that have max skill value dependent from level seted to current level max skill value
-    SelectedPlayer->UpdateSkillsToMaxSkillsForLevel();
+    SelectedPlayer->UpdateSkillsForLevel(true);
     return true;
 }
 
@@ -2633,6 +2633,7 @@ bool ChatHandler::HandleLearnAllDefaultCommand(char* args)
     if (!ExtractPlayerTarget(&args, &target))
         return false;
 
+    target->LearnDefaultSkills();
     target->learnDefaultSpells();
     target->learnQuestRewardedSpells();
 

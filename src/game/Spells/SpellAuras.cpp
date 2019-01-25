@@ -4576,11 +4576,7 @@ void Aura::HandleAuraModSkill(bool apply, bool /*Real*/)
     const int16 amount = int16(mod->m_amount);
     const bool permanent = (mod->m_auraname == SPELL_AURA_MOD_SKILL_TALENT);
 
-    if (target->ModifySkillBonus(skillId, (apply ? amount : -amount), permanent))
-    {
-        if (skillId == SKILL_DEFENSE)
-            target->UpdateDefenseBonusesMod();
-    }
+    target->ModifySkillBonus(skillId, (apply ? amount : -amount), permanent);
 }
 
 void Aura::HandleChannelDeathItem(bool apply, bool Real)
@@ -4997,17 +4993,17 @@ void Aura::HandleAuraModDisarm(bool apply, bool Real)
 
     target->ApplyModFlag(field, flags, apply);
 
-    if (target->GetTypeId() != TYPEID_PLAYER)
-        return;
-
     // main-hand attack speed already set to special value for feral form already and don't must change and reset at remove.
     if (target->IsInFeralForm())
         return;
 
-    if (apply)
-        target->SetAttackTime(attack_type, BASE_ATTACK_TIME);
-    else
-        ((Player*)target)->SetRegularAttackTime();
+    if (target->GetTypeId() == TYPEID_PLAYER)
+    {
+        if (apply)
+            target->SetAttackTime(attack_type, BASE_ATTACK_TIME);
+        else
+            ((Player*)target)->SetRegularAttackTime();
+    }
 
     target->UpdateDamagePhysical(attack_type);
 }
@@ -5744,6 +5740,7 @@ void Aura::HandleAuraModSchoolImmunity(bool apply, bool Real)
             ++next;
             SpellEntry const* spell = iter->second->GetSpellProto();
             if ((GetSpellSchoolMask(spell) & school_mask)   // Check for school mask
+                    && !iter->second->IsPassive()
                     && !spell->HasAttribute(SPELL_ATTR_UNAFFECTED_BY_INVULNERABILITY)   // Spells unaffected by invulnerability
                     && !iter->second->IsPositive()          // Don't remove positive spells
                     && spell->Id != GetId())                // Don't remove self
@@ -7697,9 +7694,17 @@ void Aura::HandleAuraGhost(bool apply, bool /*Real*/)
     Player* player = (Player*)GetTarget();
 
     if (apply)
+    {
         player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST);
+        if (!player->HasAuraType(SPELL_AURA_WATER_WALK))
+            player->SetWaterWalk(true);
+    }
     else
+    {
         player->RemoveFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST);
+        if (!player->HasAuraType(SPELL_AURA_WATER_WALK))
+            player->SetWaterWalk(false);
+    }
 
     if (player->GetGroup())
         player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_STATUS);

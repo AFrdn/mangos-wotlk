@@ -3088,6 +3088,8 @@ enum LootType
     LOOT_INSIGNIA       = 22,
     LOOT_MAIL           = 23,
     LOOT_SPELL          = 24,
+
+    LOOT_DEBUG          = 100
 };
 
 #endif

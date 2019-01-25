@@ -1388,11 +1388,22 @@ class Unit : public WorldObject
          */
         bool isAttackReady(WeaponAttackType type = BASE_ATTACK) const { return m_attackTimer[type] == 0; }
         /**
-         * Checks if the current Unit has an offhand weapon
-         * @return True if there is a offhand weapon.
+         * Checks if the current Unit has a weapon equipped at the moment
+         * @return True if there is a weapon.
          */
-        bool haveOffhandWeapon() const;
+        virtual bool hasWeapon(WeaponAttackType type) const = 0;
+        inline bool hasMainhandWeapon() const { return hasWeapon(BASE_ATTACK); }
+        inline bool hasOffhandWeapon() const { return hasWeapon(OFF_ATTACK); }
+        inline bool hasRangedWeapon() const { return hasWeapon(RANGED_ATTACK); }
         /**
+         * Checks if the current Unit has a usable weapon at the moment
+         * @return True if there is a weapon.
+         */
+        virtual bool hasWeaponForAttack(WeaponAttackType type) const { return CanUseEquippedWeapon(type); }
+        inline bool hasMainhandWeaponForAttack() const { return hasWeaponForAttack(BASE_ATTACK); }
+        inline bool hasOffhandWeaponForAttack() const { return hasWeaponForAttack(OFF_ATTACK); }
+        inline bool hasRangedWeaponForAttack() const { return hasWeaponForAttack(RANGED_ATTACK); }
+         /**
          * Does an attack if any of the timers allow it and resets them, if the user
          * isn't in range or behind the target an error is sent to the client.
          * Also makes sure to not make and offhand and mainhand attack at the same
@@ -2499,7 +2510,7 @@ class Unit : public WorldObject
         Movement::MoveSpline* movespline;
 
         void ScheduleAINotify(uint32 delay, bool forced = false);
-        bool IsAINotifyScheduled() const { return bool(m_AINotifyEvent);}
+        bool IsAINotifyScheduled() const { return m_AINotifyEvent != nullptr;}
         void FinalizeAINotifyEvent() { m_AINotifyEvent = nullptr; }
         void AbortAINotifyEvent();
         void OnRelocated();

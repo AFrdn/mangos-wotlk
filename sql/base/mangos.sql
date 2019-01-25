@@ -24,7 +24,7 @@ CREATE TABLE `db_version` (
   `version` varchar(120) DEFAULT NULL,
   `creature_ai_version` varchar(120) DEFAULT NULL,
   `cache_id` int(10) DEFAULT '0',
-  `required_13987_01_mangos_seal_of_righteousness_wrath` bit(1) DEFAULT NULL
+  `required_13992_01_mangos_weapon_skills_fix_wotlk` bit(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Used DB version notes';
 
 --
@@ -4562,6 +4562,9 @@ INSERT INTO `mangos_string` VALUES
 (644,'The Eastern Graveyard has been captured by the Alliance!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (645,'The Western Graveyard has been captured by the Alliance!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (646,'The Southern Graveyard has been captured by the Alliance!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(647,'The battle will begin in 2 minutes.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(648,'The battle will begin in 1 minute.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(649,'The battle will begin in 30 seconds.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (650,'Alliance',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (651,'Horde',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (652,'stables',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -4600,6 +4603,18 @@ INSERT INTO `mangos_string` VALUES
 (685,'The Horde have captured the flag!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (686,'The flag has been dropped.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (687,'The flag has been reset.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(688,'The battle will begin in 15 seconds.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(689,'The battle has begun!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(690,'The west gate of the Alliance keep has been destroyed!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(691,'The east gate of the Alliance keep has been destroyed!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(692,'The front gate of the Alliance keep has been destroyed!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(693,'The west gate of the Horde keep has been destroyed!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(694,'The east gate of the Horde keep has been destroyed!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(695,'The front gate of the Horde keep has been destroyed!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(696,'alliance keep',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(697,'horde keep',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(698,'workshop',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(699,'docks',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (700,'You must be level %u to form an arena team',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (701,'One minute until the Arena battle begins!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (702,'Thirty seconds until the Arena battle begins!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -4650,6 +4665,11 @@ INSERT INTO `mangos_string` VALUES
 (751,'Not enough players. This game will close in %u seconds.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (752,'Only the Alliance can use that portal',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (753,'Only the Horde can use that portal',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(754,'oil refinery',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(755,'quarry',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(756,'hangar',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(757,'$n has assaulted the %s!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(758,'$n has defended the %s!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (759,'%s was destroyed by the %s!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (760,'The %s is under attack! If left unchecked, the %s will destroy it!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (761,'The %s was taken by the %s!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -4674,6 +4694,7 @@ INSERT INTO `mangos_string` VALUES
 (780,'East Frostwolf Tower',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (781,'West Frostwolf Tower',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (782,'Frostwolf Relief Hut',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(783,'The %s has taken the %s!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (784,'1 minute until the battle for Alterac Valley begins.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (785,'30 seconds until the battle for Alterac Valley begins. Prepare yourselves!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (786,'The battle for Alterac Valley has begun!',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -11578,7 +11599,7 @@ INSERT INTO `playercreateinfo_action` VALUES
 (1,1,96,6603,0),
 (1,1,108,6603,0),
 (1,2,0,6603,0),
-(1,2,1,20154,0),
+(1,2,1,21084,0),
 (1,2,2,635,0),
 (1,2,9,59752,0),
 (1,4,0,6603,0),
@@ -11647,7 +11668,7 @@ INSERT INTO `playercreateinfo_action` VALUES
 (3,1,96,6603,0),
 (3,1,108,6603,0),
 (3,2,0,6603,0),
-(3,2,1,20154,0),
+(3,2,1,21084,0),
 (3,2,2,635,0),
 (3,2,3,20594,0),
 (3,2,4,2481,0),
@@ -11949,6 +11970,140 @@ LOCK TABLES `playercreateinfo_item` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `playercreateinfo_skills`
+--
+
+CREATE TABLE `playercreateinfo_skills` (
+  `raceMask` int unsigned NOT NULL,
+  `classMask` int unsigned NOT NULL,
+  `skill` smallint(5) unsigned NOT NULL,
+  `step` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `note` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`raceMask`,`classMask`,`skill`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `playercreateinfo_skills`
+--
+
+LOCK TABLES `playercreateinfo_skills` WRITE;
+/*!40000 ALTER TABLE `playercreateinfo_skills` DISABLE KEYS */;
+INSERT INTO `playercreateinfo_skills` VALUES
+-- ALL PLAYERS:
+(0,     0,  95, 0,  'Misc: Defense'),
+(0,     0, 162, 0,  'Weapon: Unarmed'),
+(0,     0, 183, 0,  'Misc: GENERIC (DND)'),
+(0,     0, 415, 0,  'Armor: Cloth'),
+-- WARRIOR CLASS:
+(0,     1,  26, 0,  'Warrior: Arms'),
+(0,     1, 256, 0,  'Warrior: Fury'),
+(0,     1, 257, 0,  'Warrior: Protection'),
+(167,   1,  44, 0,  'Weapon: Axes (Warrior)'),
+(216,   1, 173, 0,  'Weapon: Daggers (Warrior)'),
+(1133,  1,  54, 0,  'Weapon: Maces (Warrior)'),
+(1115,  1,  43, 0,  'Weapon: Swords (Warrior)'),
+(128,   1, 176, 0,  'Weapon: Thrown (Warrior)'),
+(6,     1, 172, 0,  'Weapon: Two-Handed Axes (Warrior)'),
+(32,    1, 160, 0,  'Weapon: Two-Handed Maces (Warrior)'),
+(1040,  1,  55, 0,  'Weapon: Two-Handed Swords (Warrior)'),
+-- PALADIN CLASS:
+(0,     2, 594, 0,  'Paladin: Holy'),
+(0,     2, 267, 0,  'Paladin: Protection'),
+(0,     2, 184, 0,  'Paladin: Retribution'),
+(1029,  2,  54, 0,  'Weapon: Maces (Paladin)'),
+(512,   2,  43, 0,  'Weapon: Swords (Paladin)'),
+(1029,  2, 160, 0,  'Weapon: Two-Handed Maces (Paladin)'),
+(512,   2,  55, 0,  'Weapon: Two-Handed Swords (Paladin)'),
+-- HUNTER CLASS:
+(0,     4,  50, 0,  'Hunter: Beast Mastery'),
+(0,     4, 163, 0,  'Hunter: Marksmanship'),
+(0,     4,  51, 0,  'Hunter: Survival'),
+(166,   4,  44, 0,  'Weapon: Axes (Hunter)'),
+(650,   4,  45, 0,  'Weapon: Bows (Hunter)'),
+(1024,  4, 226, 0,  'Weapon: Crossbows (Hunter)'),
+(520,   4, 173, 0,  'Weapon: Daggers (Hunter)'),
+(36,    4,  46, 0,  'Weapon: Guns (Hunter)'),
+(1024,  4,  43, 0,  'Weapon: Swords (Hunter)'),
+-- ROGUE CLASS:
+(0,     8,  38, 0,  'Rogue: Combat'),
+(0,     8, 253, 0,  'Rogue: Assassination'),
+(0,     8,  39, 0,  'Rogue: Subtlety'),
+(0,     8, 173, 0,  'Weapon: Daggers (Rogue)'),
+(0,     8, 176, 0,  'Weapon: Thrown (Rogue)'),
+-- PRIEST CLASS:
+(0,    16,  56, 0,  'Priest: Holy'),
+(0,    16, 613, 0,  'Priest: Discipline'),
+(0,    16,  78, 0,  'Priest: Shadow'),
+(0,    16,  54, 0,  'Weapon: Maces (Priest)'),
+(0,    16, 228, 0,  'Weapon: Wands (Priest)'),
+-- DEATH KNIGHT CLASS:
+(0,    32, 770, 0,  'Death Knight: Blood'),
+(0,    32, 771, 0,  'Death Knight: Frost'),
+(0,    32, 772, 0,  'Death Knight: Unholy'),
+(0,    32,  44, 0,  'Weapon: Axes (Death Knight)'),
+(0,    32, 229, 0,  'Weapon: Polearms (Death Knight)'),
+(0,    32,  43, 0,  'Weapon: Swords (Death Knight)'),
+(0,    32, 172, 0,  'Weapon: Two-Handed Axes (Death Knight)'),
+(0,    32,  55, 0,  'Weapon: Two-Handed Swords (Death Knight)'),
+(0,    32, 762, 1,  'Secondary: Riding'),
+(0,    32, 129, 4,  'Secondary: First Aid'),
+-- SHAMAN CLASS:
+(0,    64, 375, 0,  'Shaman: Elemental'),
+(0,    64, 373, 0,  'Shaman: Enhancement'),
+(0,    64, 374, 0,  'Shaman: Restoration'),
+(0,    64,  54, 0,  'Weapon: Maces (Shaman)'),
+(0,    64, 136, 0,  'Weapon: Staves (Shaman)'),
+-- MAGE CLASS:
+(0,   128, 237, 0,  'Mage: Arcane'),
+(0,   128,   8, 0,  'Mage: Fire'),
+(0,   128,   6, 0,  'Mage: Frost'),
+(0,   128, 136, 0,  'Weapon: Staves (Mage)'),
+(0,   128, 228, 0,  'Weapon: Wands (Mage)'),
+-- WARLOCK CLASS:
+(0,   256, 355, 0,  'Warlock: Affliction'),
+(0,   256, 354, 0,  'Warlock: Demonology'),
+(0,   256, 593, 0,  'Warlock: Destruction'),
+(0,   256, 173, 0,  'Weapon: Daggers (Warlock)'),
+(0,   256, 228, 0,  'Weapon: Wands (Warlock)'),
+-- DRUID CLASS:
+(0,  1024, 574, 0,  'Druid: Balance'),
+(0,  1024, 134, 0,  'Druid: Feral'),
+(0,  1024, 573, 0,  'Druid: Restoration'),
+(8,  1024, 173, 0,  'Weapon: Daggers (Druid)'),
+(32, 1024,  54, 0,  'Weapon: Maces (Druid)'),
+(0,  1024, 136, 0,  'Weapon: Staves (Druid)'),
+-- ARMOR AND MISC SKILLS:
+(0,    32, 293, 0,  'Armor: Plate'),
+(0,    35, 413, 0,  'Armor: Mail'),
+(0,  1135, 414, 0,  'Armor: Leather'),
+(0,    67, 433, 0,  'Armor: Shield'),
+(0,    40, 118, 0,  'Misc: Dual Wield'),
+-- ALLIANCE RACES:
+(1,     0, 754, 0,  'Racial: Human'),
+(1101,  0,  98, 0,  'Language: Common'),
+(4,     0, 101, 0,  'Racial: Dwarf'),
+(4,     0, 111, 0,  'Language: Dwarven'),
+(8,     0, 126, 0,  'Racial: Night Elf'),
+(8,     0, 113, 0,  'Language: Darnassian'),
+(64,    0, 753, 0,  'Racial: Gnome'),
+(64,    0, 313, 0,  'Language: Gnomish'),
+(1024,  0, 760, 0,  'Racial: Draenei'),
+(1024,  0, 759, 0,  'Language: Draenei'),
+-- HORDE RACES:
+(2,     0, 125, 0,  'Racial: Orc'),
+(690,   0, 109, 0,  'Language: Orcish'),
+(16,    0, 220, 0,  'Racial: Undead'),
+(16,    0, 673, 0,  'Language: Gutterspeak'),
+(32,    0, 124, 0,  'Racial: Tauren'),
+(32,    0, 115, 0,  'Language: Taurahe'),
+(128,   0, 733, 0,  'Racial: Troll'),
+(128,   0, 315, 0,  'Language: Troll'),
+(512,   0, 756, 0,  'Racial: Blood Elf'),
+(512,   0, 137, 0,  'Language: Thalassian');
+/*!40000 ALTER TABLE `playercreateinfo_skills` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `playercreateinfo_spell`
 --
 
@@ -12042,7 +12197,7 @@ INSERT INTO `playercreateinfo_spell` VALUES
 (1,2,9078,'Cloth'),
 (1,2,9116,'Shield'),
 (1,2,9125,'Generic'),
-(1,2,20154,'Seal of Righteousness'),
+(1,2,21084,'Seal of Righteousness'),
 (1,2,20597,'Sword Specialization'),
 (1,2,20598,'The Human Spirit'),
 (1,2,20599,'Diplomacy'),
@@ -12642,7 +12797,7 @@ INSERT INTO `playercreateinfo_spell` VALUES
 (3,2,9078,'Cloth'),
 (3,2,9116,'Shield'),
 (3,2,9125,'Generic'),
-(3,2,20154,'Seal of Righteousness'),
+(3,2,21084,'Seal of Righteousness'),
 (3,2,20594,'Stoneform'),
 (3,2,20595,'Gun Specialization'),
 (3,2,20596,'Frost Resistance'),
@@ -14240,7 +14395,7 @@ INSERT INTO `playercreateinfo_spell` VALUES
 (10,2,9078,'Cloth'),
 (10,2,9116,'Shield'),
 (10,2,9125,'Generic'),
-(10,2,20154,'Seal of Righteousness'),
+(10,2,21084,'Seal of Righteousness'),
 (10,2,21651,'Opening'),
 (10,2,21652,'Closing'),
 (10,2,22027,'Remove Insignia'),
@@ -14583,7 +14738,7 @@ INSERT INTO `playercreateinfo_spell` VALUES
 (11,2,9078,'Cloth'),
 (11,2,9116,'Shield'),
 (11,2,9125,'Generic'),
-(11,2,20154,'Seal of Righteousness'),
+(11,2,21084,'Seal of Righteousness'),
 (11,2,21651,'Opening'),
 (11,2,21652,'Closing'),
 (11,2,22027,'Remove Insignia'),

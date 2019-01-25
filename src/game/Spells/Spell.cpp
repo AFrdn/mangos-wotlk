@@ -742,37 +742,9 @@ void Spell::FillTargetMap()
                         case TARGET_LOCATION_CASTER_DEST:
                             SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetA[i], tmpUnitLists[i /*==effToIndex[i]*/], effException[i]);
                             break;
-                        // dest point setup required
-                        case TARGET_ENUM_UNITS_SCRIPT_AOE_AT_SRC_LOC:
-                        case TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DEST_LOC:
-                        case TARGET_ENUM_UNITS_ENEMY_AOE_AT_SRC_LOC:
-                        case TARGET_ENUM_UNITS_ENEMY_AOE_AT_DEST_LOC:
-                        case TARGET_ENUM_UNITS_ENEMY_AOE_AT_DYNOBJ_LOC:
-                        case TARGET_ENUM_UNITS_FRIEND_AOE_AT_SRC_LOC:
-                        case TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_DEST_LOC:
-                        case TARGET_LOCATION_RANDOM_SIDE:
-                        case TARGET_LOCATION_RANDOM_CIRCUMFERENCE:
-                        // target pre-selection required
-                        case TARGET_LOCATION_CASTER_HOME_BIND:
-                        case TARGET_LOCATION_DATABASE:
-                        case TARGET_LOCATION_CASTER_SRC:
-                        case TARGET_LOCATION_SCRIPT_NEAR_CASTER:
-                        case TARGET_LOCATION_CASTER_TARGET_POSITION:
-                        case TARGET_LOCATION_UNIT_POSITION:
-                        case TARGET_LOCATION_DYNOBJ_POSITION:
-                        case TARGET_LOCATION_NORTH:
-                        case TARGET_LOCATION_SOUTH:
-                        case TARGET_LOCATION_EAST:
-                        case TARGET_LOCATION_WEST:
-                        case TARGET_LOCATION_NE:
-                        case TARGET_LOCATION_NW:
-                        case TARGET_LOCATION_SE:
-                        case TARGET_LOCATION_SW:
+                        default:
                             // need some target for processing
                             SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetA[i], tmpUnitLists[i /*==effToIndex[i]*/], effException[i]);
-                            SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetB[i], tmpUnitLists[i /*==effToIndex[i]*/], effException[i]);
-                            break;
-                        default:
                             SetTargetMap(SpellEffectIndex(i), m_spellInfo->EffectImplicitTargetB[i], tmpUnitLists[i /*==effToIndex[i]*/], effException[i]);
                             break;
                     }
@@ -936,6 +908,16 @@ void Spell::FillTargetMap()
         for (UnitList::const_iterator iunit = tmpUnitLists[effToIndex[i]].begin(); iunit != tmpUnitLists[effToIndex[i]].end(); ++iunit)
             AddUnitTarget((*iunit), SpellEffectIndex(i));
     }
+
+    // TODO: Sort out script targeting in CheckCast and remove this
+    m_UniqueTargetInfo.sort([](TargetInfo const& left, TargetInfo const& right)->bool
+    {
+        if ((left.effectMask & 1) || (right.effectMask & 1))
+            return (left.effectMask & 1) > (right.effectMask & 1);
+        if ((left.effectMask & 2) || (right.effectMask & 2))
+            return (left.effectMask & 2) > (right.effectMask & 2);
+        return true;
+    });
 }
 
 void Spell::prepareDataForTriggerSystem()
@@ -1244,6 +1226,8 @@ void Spell::AddGOTarget(GameObject* pVictim, SpellEffectIndex effIndex)
             dist = affectiveObject->GetDistance(m_targets.m_destX, m_targets.m_destY, m_targets.m_destZ, DIST_CALC_NONE);
         else
             dist = affectiveObject->GetDistance(pVictim->GetPositionX(), pVictim->GetPositionY(), pVictim->GetPositionZ(), DIST_CALC_NONE);
+
+        dist = sqrt(dist); // default distance calculation is raw, apply sqrt before the next step
 
         float speed;
         if (m_targets.getSpeed() > 0.0f)
@@ -2687,7 +2671,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         case TARGET_ENUM_UNITS_ENEMY_IN_CONE_104:
         case TARGET_ENUM_UNITS_SCRIPT_IN_CONE_110:
         {
-            SpellTargets targetType;
+            SpellTargets targetType = SPELL_TARGETS_ALL;
             switch (targetMode)
             {
                 case TARGET_ENUM_UNITS_ENEMY_IN_CONE_104:
@@ -2701,17 +2685,12 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 case TARGET_ENUM_UNITS_SCRIPT_IN_CONE_60:
                 case TARGET_ENUM_UNITS_SCRIPT_IN_CONE_110:
                 {
-                    if (m_spellInfo->Effect[effIndex] == SPELL_EFFECT_SCRIPT_EFFECT) // workaround for neutral target type
-                        targetType = SPELL_TARGETS_ALL;
                     UnitList tempTargetUnitMap;
                     SQLMultiStorage::SQLMSIteratorBounds<SpellTargetEntry> bounds = sSpellScriptTargetStorage.getBounds<SpellTargetEntry>(m_spellInfo->Id);
                     // fill real target list if no spell script target defined
-                    FillAreaTargets(bounds.first != bounds.second ? tempTargetUnitMap : targetUnitMap,
-                        radius, cone, PUSH_CONE, bounds.first != bounds.second ? SPELL_TARGETS_ALL : targetType);
+                    FillAreaTargets(bounds.first != bounds.second ? tempTargetUnitMap : targetUnitMap, radius, cone, PUSH_CONE, targetType);
                     if (!tempTargetUnitMap.empty())
-                    {
                         CheckSpellScriptTargets(bounds, tempTargetUnitMap, targetUnitMap, effIndex);
-                    }
                     break;
                 }
                 default:
@@ -3438,6 +3417,14 @@ SpellCastResult Spell::SpellStart(SpellCastTargets const* targets, Aura* trigger
     SpellEvent* Event = new SpellEvent(this);
     m_caster->m_events.AddEvent(Event, m_caster->m_events.CalculateTime(1));
 
+    // Prevent casting at cast another spell (ServerSide check)
+    if (m_caster->IsNonMeleeSpellCasted(false, true, true) && m_cast_count && !m_spellInfo->HasAttribute(SPELL_ATTR_EX4_CAN_CAST_WHILE_CASTING))
+    {
+        SendCastResult(SPELL_FAILED_SPELL_IN_PROGRESS);
+        finish(false);
+        return SPELL_FAILED_SPELL_IN_PROGRESS;
+    }
+
     // Fill cost data
     m_powerCost = m_IsTriggeredSpell ? 0 : CalculatePowerCost(m_spellInfo, m_caster, this, m_CastItem);
 
@@ -3742,8 +3729,7 @@ void Spell::cast(bool skipCheck)
         }
         case SPELLFAMILY_ROGUE:
             // Fan of Knives (main hand)
-            if (m_spellInfo->Id == 51723 && m_caster->GetTypeId() == TYPEID_PLAYER &&
-                    ((Player*)m_caster)->haveOffhandWeapon())
+            if (m_spellInfo->Id == 51723 && m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->hasOffhandWeaponForAttack())
             {
                 AddTriggeredSpell(52874);                   // Fan of Knives (offhand)
             }
@@ -4007,7 +3993,7 @@ void Spell::_handle_immediate_phase()
         if (!m_spellInfo->HasAttribute(SPELL_ATTR_EX2_NOT_RESET_AUTO_ACTIONS))
         {
             m_caster->resetAttackTimer(BASE_ATTACK);
-            if (m_caster->haveOffhandWeapon())
+            if (m_caster->hasOffhandWeaponForAttack())
                 m_caster->resetAttackTimer(OFF_ATTACK);
         }
     }
@@ -6775,6 +6761,17 @@ SpellCastResult Spell::CheckCast(bool strict)
 
                 // It is assumed that target can not be cloned if already cloned by same or other clone auras
                 if (expectedTarget->HasAuraType(SPELL_AURA_MIRROR_IMAGE))
+                    return SPELL_FAILED_BAD_TARGETS;
+
+                break;
+            }
+            case SPELL_AURA_MOD_DISARM:
+            {
+                if (!expectedTarget)
+                    return SPELL_FAILED_BAD_TARGETS;
+
+                // Target must be a weapon wielder
+                if (!expectedTarget->hasMainhandWeapon())
                     return SPELL_FAILED_BAD_TARGETS;
 
                 break;
