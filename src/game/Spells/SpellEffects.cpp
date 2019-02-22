@@ -287,7 +287,7 @@ void Spell::EffectInstaKill(SpellEffectIndex /*eff_idx*/)
 void Spell::EffectEnvironmentalDMG(SpellEffectIndex eff_idx)
 {
     uint32 absorb = 0;
-    uint32 resist = 0;
+    int32 resist = 0;
 
     // Note: this hack with damage replace required until GO casting not implemented
     // environment damage spells already have around enemies targeting but this not help in case nonexistent GO casting support
@@ -1492,6 +1492,29 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                     if (unitTarget && unitTarget->GetTypeId() == TYPEID_PLAYER)
                         m_caster->CastSpell(unitTarget, 24795, TRIGGERED_OLD_TRIGGERED);
 
+                    return;
+                }
+                case 25145:                                 // Merithra's Wake
+                {
+                    unitTarget->CastSpell(unitTarget, 25172, TRIGGERED_OLD_TRIGGERED);
+                    return;
+                }
+                case 25149:                                 // Arygos's Vengeance
+                {
+                    unitTarget->CastSpell(unitTarget, 25168, TRIGGERED_OLD_TRIGGERED);
+                    return;
+                }
+                case 25150:                                 // Molten Rain
+                {
+                    unitTarget->CastSpell(unitTarget, 25169, TRIGGERED_OLD_TRIGGERED);
+                    unitTarget->CastSpell(unitTarget, 25170, TRIGGERED_OLD_TRIGGERED);
+                    return;
+                }
+                case 25158:                                 // Time Stop
+                {
+                    unitTarget->SetImmuneToNPC(true);
+                    unitTarget->RemoveAllAuras();
+                    unitTarget->CastSpell(unitTarget, 25171, TRIGGERED_OLD_TRIGGERED);
                     return;
                 }
                 case 26080:                                 // Stinger Charge Primer
@@ -2948,37 +2971,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                             // 60% Kodo
                             m_caster->CastSpell(m_caster, 49378, TRIGGERED_OLD_TRIGGERED);
                     }
-                    return;
-                }
-                case 49634:                                 // Sergeant's Flare
-                {
-                    if (!unitTarget || unitTarget->GetTypeId() != TYPEID_UNIT)
-                        return;
-
-                    // Towers of Certain Doom: Tower Bunny Smoke Flare Effect
-                    // TODO: MaNGOS::DynamicObjectUpdater::VisitHelper prevent aura to be applied to dummy creature (see HandleAuraDummy for effect of aura)
-                    m_caster->CastSpell(unitTarget, 56511, TRIGGERED_OLD_TRIGGERED);
-
-                    static uint32 const spellCredit[4] =
-                    {
-                        43077,                              // E Kill Credit
-                        43067,                              // NW Kill Credit
-                        43087,                              // SE Kill Credit
-                        43086,                              // SW Kill Credit
-                    };
-
-                    // for sizeof(spellCredit)
-                    for (unsigned int i : spellCredit)
-                    {
-                        const SpellEntry* pSpell = sSpellTemplate.LookupEntry<SpellEntry>(i);
-
-                        if (pSpell->EffectMiscValue[EFFECT_INDEX_0] == static_cast<int32>(unitTarget->GetEntry()))
-                        {
-                            m_caster->CastSpell(m_caster, i, TRIGGERED_OLD_TRIGGERED);
-                            break;
-                        }
-                    }
-
                     return;
                 }
                 case 49761:                                 // Rocket-Propelled Goblin Grenade
@@ -4492,11 +4484,13 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
             {
                 if (m_CastItem)
                 {
+                    // found spelldamage coefficients of 0.381% per 0.1 speed and 15.244 per 4.0 speed
+                    // but own calculation say 0.385 gives at most one point difference to published values
                     int32 bonusDamage = m_caster->SpellBaseDamageBonusDone(GetSpellSchoolMask(m_spellInfo))
                                         + unitTarget->SpellBaseDamageBonusTaken(GetSpellSchoolMask(m_spellInfo));
                     // Does Amplify Magic/Dampen Magic influence flametongue? If not, the above addition must be removed.
                     float weaponSpeed = float(m_CastItem->GetProto()->Delay) / IN_MILLISECONDS;
-                    bonusDamage = m_caster->SpellBonusWithCoeffs(m_spellInfo, bonusDamage, 0, 0, SPELL_DIRECT_DAMAGE, false); // apply spell coeff
+                    bonusDamage = m_caster->SpellBonusWithCoeffs(m_spellInfo, 0, bonusDamage, 0, SPELL_DIRECT_DAMAGE, false); // apply spell coeff
                     int32 totalDamage = ((damage + bonusDamage) * 0.01 * weaponSpeed);
 
                     m_caster->CastCustomSpell(unitTarget, 10444, &totalDamage, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED, m_CastItem);
@@ -5299,10 +5293,9 @@ void Spell::EffectPowerDrain(SpellEffectIndex eff_idx)
     damage = m_caster->SpellDamageBonusDone(unitTarget, m_spellInfo, uint32(damage), SPELL_DIRECT_DAMAGE);
     damage = unitTarget->SpellDamageBonusTaken(m_caster, m_spellInfo, uint32(damage), SPELL_DIRECT_DAMAGE);
 
-    // resilience reduce mana draining effect at spell crit damage reduction (added in 2.4)
     uint32 power = damage;
-    if (powerType == POWER_MANA)
-        power -= unitTarget->GetManaDrainReduction(power);
+
+    power -= unitTarget->GetResilienceRatingDamageReduction(power, SpellDmgClass(m_spellInfo->DmgClass), false, powerType);
 
     int32 new_damage;
     if (curPower < power)
@@ -5366,10 +5359,9 @@ void Spell::EffectPowerBurn(SpellEffectIndex eff_idx)
 
     int32 curPower = int32(unitTarget->GetPower(powertype));
 
-    // resilience reduce mana draining effect at spell crit damage reduction (added in 2.4)
     int32 power = damage;
-    if (powertype == POWER_MANA)
-        power -= unitTarget->GetManaDrainReduction(power);
+
+    power -= unitTarget->GetResilienceRatingDamageReduction(uint32(power), SpellDmgClass(m_spellInfo->DmgClass), false, powertype);
 
     int32 new_damage = (curPower < power) ? curPower : power;
 
@@ -7219,7 +7211,7 @@ void Spell::EffectLearnSkill(SpellEffectIndex eff_idx)
     target->SetSkillStep(skillid, step);
 
     if (WorldObject const* caster = GetCastingObject())
-        DEBUG_LOG("Spell: %s has learned skill %u (to step %u) from %s", target->GetGuidStr().c_str(), skillid, step, caster->GetGuidStr().c_str());
+        DEBUG_LOG("Spell: %s teaches %s skill %u (to step %u)", caster->GetGuidStr().c_str(), target->GetGuidStr().c_str(), skillid, step);
 }
 
 void Spell::EffectAddHonor(SpellEffectIndex /*eff_idx*/)

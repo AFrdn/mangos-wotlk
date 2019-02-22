@@ -214,7 +214,7 @@ pAuraHandler AuraHandler[TOTAL_AURAS] =
     &Aura::HandleNoImmediateEffect,                         //152 SPELL_AURA_MOD_DETECTED_RANGE         implemented in Creature::GetAttackDistance
     &Aura::HandleNoImmediateEffect,                         //153 SPELL_AURA_SPLIT_DAMAGE_FLAT          implemented in Unit::CalculateAbsorbAndResist
     &Aura::HandleNoImmediateEffect,                         //154 SPELL_AURA_MOD_STEALTH_LEVEL          implemented in Unit::IsVisibleForOrDetect
-    &Aura::HandleNoImmediateEffect,                         //155 SPELL_AURA_MOD_WATER_BREATHING        implemented in Player::getMaxTimer
+    &Aura::HandleModWaterBreathing,                         //155 SPELL_AURA_MOD_WATER_BREATHING
     &Aura::HandleNoImmediateEffect,                         //156 SPELL_AURA_MOD_REPUTATION_GAIN        implemented in Player::CalculateReputationGain
     &Aura::HandleUnused,                                    //157 SPELL_AURA_PET_DAMAGE_MULTI (single test like spell 20782, also single for 214 aura)
     &Aura::HandleShieldBlockValue,                          //158 SPELL_AURA_MOD_SHIELD_BLOCKVALUE
@@ -2872,6 +2872,18 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                 }
                 break;
             }
+            case SPELLFAMILY_PRIEST:
+            {
+                switch (GetId())
+                {
+                    case 30238:             // Lordaeron's Blessing
+                    {
+                        target->CastSpell(target, 31906, TRIGGERED_OLD_TRIGGERED);
+                        return;
+                    }
+                }
+                break;
+            }
         }
     }
     // AT REMOVE
@@ -2984,6 +2996,11 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
             {
                 if (target->HasAura(30168))
                     target->RemoveAurasDueToSpell(30168); // remove Shadow cage if stacks are 5
+            }
+            case 30238:                                     // Lordaeron's Bleesing
+            {
+                target->RemoveAurasDueToSpell(31906);
+                return;
             }
             case 32045:                                     // Soul Charge
             {
@@ -3871,6 +3888,22 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
         return;
     }
 
+    if (target->IsBoarded() && target->GetTransportInfo()->IsOnVehicle())
+    {
+        if (IsSpellHaveAura(GetSpellProto(), SPELL_AURA_CONTROL_VEHICLE))
+        {
+            // TODO maybe move GetVehicleInfo() to WorldObject class
+            auto vehicle = static_cast<Unit*>(target->GetTransportInfo()->GetTransport());
+            auto vehicleInfo = vehicle->GetVehicleInfo();
+
+            if (!apply)
+            {
+                //sLog.outString("Unboarding %s %s from %s %s", target->GetName(), target->GetGuidStr().c_str(), vehicle->GetName(), vehicle->GetGuidStr().c_str());
+                vehicleInfo->UnBoard(target, false);
+            }
+        }
+    }
+
     if (target->GetTypeId() == TYPEID_PLAYER)
     {
         SpellAreaForAreaMapBounds saBounds = sSpellMgr.GetSpellAreaForAuraMapBounds(GetId());
@@ -3963,11 +3996,20 @@ void Aura::HandleAuraHover(bool apply, bool Real)
     GetTarget()->SetHover(apply);
 }
 
-void Aura::HandleWaterBreathing(bool /*apply*/, bool /*Real*/)
+void Aura::HandleWaterBreathing(bool apply, bool /*Real*/)
 {
-    // update timers in client
-    if (GetTarget()->GetTypeId() == TYPEID_PLAYER)
-        ((Player*)GetTarget())->UpdateMirrorTimers();
+    Unit* target = GetTarget();
+
+    if (target->GetTypeId() == TYPEID_PLAYER)
+        static_cast<Player*>(target)->SetWaterBreathingIntervalMultiplier(apply ? 0 : target->GetTotalAuraMultiplier(SPELL_AURA_MOD_WATER_BREATHING));
+}
+
+void Aura::HandleModWaterBreathing(bool /*apply*/, bool /*Real*/)
+{
+    Unit* target = GetTarget();
+
+    if (target->GetTypeId() == TYPEID_PLAYER)
+        static_cast<Player*>(target)->SetWaterBreathingIntervalMultiplier(target->GetTotalAuraMultiplier(SPELL_AURA_MOD_WATER_BREATHING));
 }
 
 void Aura::HandleAuraModShapeshift(bool apply, bool Real)
@@ -7834,9 +7876,6 @@ void Aura::HandleSpiritOfRedemption(bool apply, bool Real)
     {
         if (target->GetTypeId() == TYPEID_PLAYER)
         {
-            // disable breath/etc timers
-            ((Player*)target)->StopMirrorTimers();
-
             // set stand state (expected in this form)
             if (!target->IsStandState())
                 target->SetStandState(UNIT_STAND_STATE_STAND);
@@ -8089,7 +8128,7 @@ void Aura::PeriodicTick()
             }
 
             uint32 absorb = 0;
-            uint32 resist = 0;
+            int32 resist = 0;
             CleanDamage cleanDamage =  CleanDamage(0, BASE_ATTACK, MELEE_HIT_NORMAL);
 
             // SpellDamageBonus for magic spells
@@ -8124,7 +8163,7 @@ void Aura::PeriodicTick()
             // only from players
             // FIXME: need use SpellDamageBonus instead?
             if (pCaster->GetTypeId() == TYPEID_PLAYER)
-                pdamage -= target->GetSpellDamageReduction(pdamage);
+                pdamage -= target->GetResilienceRatingDamageReduction(pdamage, SpellDmgClass(spellProto->DmgClass), true);
 
             target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, IsReflectableSpell(spellProto), IsResistableSpell(spellProto));
 
@@ -8138,7 +8177,10 @@ void Aura::PeriodicTick()
             uint32 procVictim   = PROC_FLAG_ON_TAKE_PERIODIC;// | PROC_FLAG_TAKEN_HARMFUL_SPELL_HIT;
             uint32 procEx = isCrit ? PROC_EX_CRITICAL_HIT : PROC_EX_NORMAL_HIT;
 
-            pdamage = (pdamage <= absorb + resist) ? 0 : (pdamage - absorb - resist);
+            const uint32 bonus = (resist < 0 ? uint32(std::abs(resist)) : 0);
+            pdamage += bonus;
+            const uint32 malus = (resist > 0 ? (absorb + uint32(resist)) : absorb);
+            pdamage = (pdamage <= malus ? 0 : (pdamage - malus));
 
             uint32 overkill = pdamage > target->GetHealth() ? pdamage - target->GetHealth() : 0;
             SpellPeriodicAuraLogInfo pInfo(this, pdamage, overkill, absorb, resist, 0.0f, isCrit);
@@ -8190,10 +8232,10 @@ void Aura::PeriodicTick()
             }
 
             uint32 absorb = 0;
-            uint32 resist = 0;
+            int32 resist = 0;
             CleanDamage cleanDamage =  CleanDamage(0, BASE_ATTACK, MELEE_HIT_NORMAL);
 
-            uint32 pdamage = m_modifier.m_amount > 0 ? m_modifier.m_amount : 0;
+            uint32 pdamage = (m_modifier.m_amount > 0 ? uint32(m_modifier.m_amount) : 0);
 
             pdamage = target->SpellDamageBonusTaken(pCaster, spellProto, pdamage, DOT, GetStackAmount());
 
@@ -8206,9 +8248,7 @@ void Aura::PeriodicTick()
             // only from players
             // FIXME: need use SpellDamageBonus instead?
             if (GetCasterGuid().IsPlayer())
-                pdamage -= target->GetSpellDamageReduction(pdamage);
-
-            target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, IsReflectableSpell(spellProto), IsResistableSpell(spellProto));
+                pdamage -= target->GetResilienceRatingDamageReduction(pdamage, SpellDmgClass(spellProto->DmgClass), true);
 
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %s health leech of %s for %u dmg inflicted by %u abs is %u",
                               GetCasterGuid().GetString().c_str(), target->GetGuidStr().c_str(), pdamage, GetId(), absorb);
@@ -8224,7 +8264,13 @@ void Aura::PeriodicTick()
             uint32 procVictim   = PROC_FLAG_ON_TAKE_PERIODIC;// | PROC_FLAG_TAKEN_HARMFUL_SPELL_HIT;
             uint32 procEx = isCrit ? PROC_EX_CRITICAL_HIT : PROC_EX_NORMAL_HIT;
 
-            pdamage = (pdamage <= absorb + resist) ? 0 : (pdamage - absorb - resist);
+            const uint32 bonus = (resist < 0 ? uint32(std::abs(resist)) : 0);
+            pdamage += bonus;
+            const uint32 malus = (resist > 0 ? (absorb + uint32(resist)) : absorb);
+            pdamage = (pdamage <= malus ? 0 : (pdamage - malus));
+
+            pdamage = std::min(pdamage, target->GetHealth());
+
             if (pdamage)
                 procVictim |= PROC_FLAG_TAKEN_ANY_DAMAGE;
 
@@ -8411,9 +8457,7 @@ void Aura::PeriodicTick()
 
             int32 drain_amount = target->GetPower(power) > pdamage ? pdamage : target->GetPower(power);
 
-            // resilience reduce mana draining effect at spell crit damage reduction (added in 2.4)
-            if (power == POWER_MANA)
-                drain_amount -= target->GetManaDrainReduction(drain_amount);
+            drain_amount -= target->GetResilienceRatingDamageReduction(uint32(drain_amount), SpellDmgClass(spellProto->DmgClass), false, power);
 
             target->ModifyPower(power, -drain_amount);
 
@@ -8580,9 +8624,7 @@ void Aura::PeriodicTick()
             if (!target->isAlive() || target->GetPowerType() != powerType)
                 return;
 
-            // resilience reduce mana draining effect at spell crit damage reduction (added in 2.4)
-            if (powerType == POWER_MANA)
-                pdamage -= target->GetManaDrainReduction(pdamage);
+            pdamage -= target->GetResilienceRatingDamageReduction(uint32(pdamage), SpellDmgClass(spellProto->DmgClass), false, powerType);
 
             uint32 gain = uint32(-target->ModifyPower(powerType, -pdamage));
 
@@ -9471,10 +9513,14 @@ void Aura::HandleAuraControlVehicle(bool apply, bool Real)
 
     if (apply)
     {
+        //sLog.outString("Boarding %s %s on %s %s", caster->GetName(), caster->GetGuidStr().c_str(), target->GetName(), target->GetGuidStr().c_str());
         target->GetVehicleInfo()->Board(caster, GetBasePoints() - 1);
     }
     else
+    {
+        //sLog.outString("Unboarding %s %s from %s %s", caster->GetName(), caster->GetGuidStr().c_str(), target->GetName(), target->GetGuidStr().c_str());
         target->GetVehicleInfo()->UnBoard(caster, m_removeMode == AURA_REMOVE_BY_TRACKING);
+    }
 }
 
 void Aura::HandleAuraAddMechanicAbilities(bool apply, bool Real)
@@ -11210,7 +11256,7 @@ bool SpellAuraHolder::IsEmptyHolder() const
 void SpellAuraHolder::UnregisterAndCleanupTrackedAuras()
 {
     TrackedAuraType trackedType = GetTrackedAuraType();
-    if (!trackedType)
+    if (trackedType == TRACK_AURA_TYPE_NOT_TRACKED)
         return;
 
     if (trackedType == TRACK_AURA_TYPE_SINGLE_TARGET)
@@ -11224,7 +11270,13 @@ void SpellAuraHolder::UnregisterAndCleanupTrackedAuras()
         if (caster && IsSpellHaveAura(GetSpellProto(), SPELL_AURA_CONTROL_VEHICLE, GetAuraFlags()))
         {
             caster->GetTrackedAuraTargets(trackedType).erase(GetSpellProto());
-            caster->RemoveAurasDueToSpell(GetSpellProto()->Id);
+
+            if (SpellAuraHolder* holder = caster->GetSpellAuraHolder(GetSpellProto()->Id))
+            {
+                // remove the tracked aura type(TRACK_AURA_TYPE_CONTROL_VEHICLE) to avoid getting back here
+                holder->SetTrackedAuraType(TRACK_AURA_TYPE_NOT_TRACKED);
+                caster->RemoveSpellAuraHolder(holder);
+            }
         }
         else if (caster)
         {
@@ -11235,7 +11287,23 @@ void SpellAuraHolder::UnregisterAndCleanupTrackedAuras()
                 ObjectGuid vehicleGuid = find->second;
                 scTarget.erase(find);
                 if (Unit* vehicle = caster->GetMap()->GetUnit(vehicleGuid))
-                    vehicle->RemoveAurasDueToSpell(GetSpellProto()->Id, nullptr, AURA_REMOVE_BY_DEFAULT);
+                {
+                    vehicle->RemoveAurasByCasterSpell(GetSpellProto()->Id, caster->GetObjectGuid());
+                    ObjectGuid const& casterGuid = caster->GetObjectGuid();
+                    Unit::SpellAuraHolderBounds spair = vehicle->GetSpellAuraHolderBounds(GetSpellProto()->Id);
+                    for (Unit::SpellAuraHolderMap::iterator iter = spair.first; iter != spair.second;)
+                    {
+                        if (iter->second->GetCasterGuid() == casterGuid)
+                        {
+                            // remove the tracked aura type(TRACK_AURA_TYPE_CONTROL_VEHICLE) to avoid getting back here
+                            iter->second->SetTrackedAuraType(TRACK_AURA_TYPE_NOT_TRACKED);
+                            vehicle->RemoveSpellAuraHolder(iter->second);
+                            break;
+                        }
+                        else
+                            ++iter;
+                    }
+                }
             }
         }
     }
