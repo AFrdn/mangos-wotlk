@@ -1870,13 +1870,13 @@ class PlayerbotAI
         void TellMaster(const std::string& text) const;
         void TellMaster(const char* fmt, ...) const;
         void SendWhisper(const std::string& text, Player& player) const;
-        bool CastSpell(const char* args);
-        bool CastSpell(uint32 spellId);
-        bool CastSpell(uint32 spellId, Unit& target);
-        bool CheckBotCast(const SpellEntry* sInfo);
-        bool CastPetSpell(uint32 spellId, Unit* target = nullptr);
-        bool Buff(uint32 spellId, Unit* target, void (*beforeCast)(Player*) = nullptr);
-        bool SelfBuff(uint32 spellId);
+        SpellCastResult CastSpell(const char* args);
+        SpellCastResult CastSpell(uint32 spellId);
+        SpellCastResult CastSpell(uint32 spellId, Unit& target);
+        SpellCastResult CheckBotCast(const SpellEntry* sInfo);
+        SpellCastResult CastPetSpell(uint32 spellId, Unit* target = nullptr);
+        SpellCastResult Buff(uint32 spellId, Unit* target, void (*beforeCast)(Player*) = nullptr);
+        SpellCastResult SelfBuff(uint32 spellId);
         bool In_Range(Unit* Target, uint32 spellId);
         bool In_Reach(Unit* Target, uint32 spellId);
         bool CanReachWithSpellAttack(Unit* target);
@@ -1945,7 +1945,7 @@ class PlayerbotAI
         void GetTaxi(ObjectGuid guid, BotTaxiNode& nodes);
         void BeingRolledOn(ObjectGuid target) { m_being_rolled_on.push_back(target); };
 
-        bool HasCollectFlag(uint8 flag) { return m_collectionFlags & flag; }
+        bool HasCollectFlag(uint8 flag) { return (m_collectionFlags & flag) ? true : false; }
         void SetCollectFlag(uint8 flag)
         {
             if (HasCollectFlag(flag)) m_collectionFlags &= ~flag;
