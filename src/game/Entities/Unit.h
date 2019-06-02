@@ -313,11 +313,10 @@ typedef std::list<SpellImmune> SpellImmuneList;
 enum UnitModifierType
 {
     BASE_VALUE = 0,
-    BASE_EXCLUSIVE = 1,
-    BASE_PCT = 2,
-    TOTAL_VALUE = 3,
-    TOTAL_PCT = 4,
-    MODIFIER_TYPE_END = 5
+    BASE_PCT = 1,
+    TOTAL_VALUE = 2,
+    TOTAL_PCT = 3,
+    MODIFIER_TYPE_END = 4
 };
 
 enum WeaponDamageRange
@@ -1593,6 +1592,8 @@ class Unit : public WorldObject
             return false;
         }
 
+        Player const* GetControllingPlayer(bool ignoreCharms = false) const;
+
         ReputationRank GetReactionTo(Unit const* unit) const override;
         ReputationRank GetReactionTo(Corpse const* corpse) const override;
 
@@ -1613,8 +1614,15 @@ class Unit : public WorldObject
 
         bool IsCivilianForTarget(Unit const* pov) const;
 
-        bool IsInGroup(Unit const* other, bool party = false, bool UI = false) const;
-        bool IsInParty(Unit const* other, bool UI = false) const { return IsInGroup(other, true, UI); }
+        // Serverside fog of war settings
+        bool IsFogOfWarVisibleStealth(Unit const* other) const;
+        bool IsFogOfWarVisibleHealth(Unit const* other) const;
+        bool IsFogOfWarVisibleStats(Unit const* other) const;
+
+        bool IsInGroup(Unit const* other, bool party = false, bool ignoreCharms = false) const;
+        inline bool IsInParty(Unit const* other, bool ignoreCharms = false) const { return IsInGroup(other, true, ignoreCharms); }
+        bool IsInGuild(Unit const* other, bool ignoreCharms = false) const;
+        bool IsInTeam(Unit const* other, bool ignoreCharms = true) const;
 
         // extensions of CanAttack and CanAssist API needed serverside
         virtual bool CanAttackSpell(Unit const* target, SpellEntry const* spellInfo = nullptr, bool isAOE = false) const override;
@@ -1622,11 +1630,6 @@ class Unit : public WorldObject
 
         bool CanAttackOnSight(Unit const* target) const; // Used in MoveInLineOfSight checks
         bool CanAssistInCombatAgainst(Unit const* who, Unit const* enemy) const;
-
-        // Serverside fog of war settings
-        bool IsFogOfWarVisibleStealth(Unit const* other) const;
-        bool IsFogOfWarVisibleHealth(Unit const* other) const;
-        bool IsFogOfWarVisibleStats(Unit const* other) const;
 
         bool IsImmuneToNPC() const { return HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC); }
         void SetImmuneToNPC(bool state);
@@ -1652,7 +1655,7 @@ class Unit : public WorldObject
         bool IsSitState() const;
         bool IsStandState() const;
         bool IsSeatedState() const;
-        void SetStandState(uint8 state);
+        void SetStandState(uint8 state, bool acknowledge = false);
 
         void  SetStandFlags(uint8 flags) { SetByteFlag(UNIT_FIELD_BYTES_1, 2, flags); }
         void  RemoveStandFlags(uint8 flags) { RemoveByteFlag(UNIT_FIELD_BYTES_1, 2, flags); }
@@ -2017,8 +2020,6 @@ class Unit : public WorldObject
         // Beneficiary: owner of the xp/loot/etc credit, master or self (server-side)
         Unit* GetBeneficiary() const;
         Player* GetBeneficiaryPlayer() const;
-        // Controlling player: official client PoV and term on which player is the "master" of the unit at the moment, limited recursive master/beneficiary logic (client-side)
-        Player const* GetControllingPlayer() const;
 
         // Client controlled: check if unit currently is under client control (has active "mover"), optionally check for specific client (server-side)
         bool IsClientControlled(Player const* exactClient = nullptr) const;

@@ -3375,6 +3375,14 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                     m_caster->CastSpell(m_caster, spellShrink, TRIGGERED_OLD_TRIGGERED);
                     return;
                 }
+                case 54148:                                 // Ritual of the Sword
+                {
+                    if (!unitTarget || unitTarget->GetTypeId() != TYPEID_PLAYER)
+                        return;
+
+                    m_caster->CastSpell(unitTarget, 48267, TRIGGERED_OLD_TRIGGERED);
+                    return;
+                }
                 case 54577:                                 // Throw U.D.E.D.
                 {
                     if (!unitTarget || unitTarget->GetTypeId() != TYPEID_UNIT)
@@ -10221,6 +10229,14 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     unitTarget->RemoveAurasDueToSpell(51967);
                     return;
                 }
+                case 54205:                                 // Svala Transforming
+                {
+                    if (unitTarget->GetTypeId() != TYPEID_UNIT)
+                        return;
+
+                    unitTarget->RemoveAurasDueToSpell(m_spellInfo->CalculateSimpleValue(eff_idx));
+                    return;
+                }
                 case 54581:                                 // Mammoth Explosion Spell Spawner
                 {
                     if (m_caster->GetTypeId() != TYPEID_UNIT)
@@ -10421,6 +10437,18 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                         case POWER_HEALTH:
                             break;
                     }
+                    return;
+                }
+                case 59910:                                 // Summon Minions
+                {
+                    if (!unitTarget)
+                        return;
+
+                    unitTarget->CastSpell(unitTarget, 59935, TRIGGERED_OLD_TRIGGERED);
+                    unitTarget->CastSpell(unitTarget, 59938, TRIGGERED_OLD_TRIGGERED);
+                    unitTarget->CastSpell(unitTarget, 59939, TRIGGERED_OLD_TRIGGERED);
+                    unitTarget->CastSpell(unitTarget, 59940, TRIGGERED_OLD_TRIGGERED);
+                    unitTarget->CastSpell(unitTarget, 59943, TRIGGERED_OLD_TRIGGERED);
                     return;
                 }
                 case 60893:                                 // Northrend Alchemy Research
