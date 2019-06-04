@@ -40,9 +40,14 @@ PetAI::PetAI(Creature* creature) : UnitAI(creature), m_creature(creature), inCom
     m_AllySet.clear();
     UpdateAllies();
 
-    if (creature->IsPet() && dynamic_cast<Pet*>(creature)->isControlled()
-        && sWorld.getConfig(CONFIG_BOOL_PET_ATTACK_FROM_BEHIND))
-        m_attackAngle = M_PI_F;
+	if (creature->IsPet() && sWorld.getConfig(CONFIG_BOOL_PET_ATTACK_FROM_BEHIND)) 
+	{
+		Pet* pet = static_cast<Pet*>(creature);
+		if (pet->isControlled() && pet->GetTarget() && pet->GetTarget()->GetTarget() != creature) 
+		{
+			m_attackAngle = M_PI_F;
+		}
+	}   
 
     switch (creature->GetUInt32Value(UNIT_CREATED_BY_SPELL))
     {
