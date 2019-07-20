@@ -498,7 +498,7 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     SendPacket(data);
 
     const std::string& IP_str = GetRemoteAddress();
-    BASIC_LOG("Account: %d (IP: %s) Create Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), pNewChar->GetGUIDLow());
+    DETAIL_LOG("Account: %d (IP: %s) Create Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), pNewChar->GetGUIDLow());
     sLog.outChar("Account: %d (IP: %s) Create Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), pNewChar->GetGUIDLow());
 
     delete pNewChar;                                        // created only to call SaveToDB()
@@ -610,6 +610,10 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recv_data)
             // finish pending transfers before starting the logout
             while (_player && _player->IsBeingTeleportedFar())
                 HandleMoveWorldportAckOpcode();
+
+        // release loot on reconnect
+        if (Loot* loot = sLootMgr.GetLoot(_player))
+            loot->Release(_player);
 
         HandlePlayerReconnect();
         return;

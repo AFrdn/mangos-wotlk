@@ -364,7 +364,7 @@ struct boss_kaelthasAI : public ScriptedAI
         m_attackAngle = 0.0f;
 
         SetCombatMovement(true);
-        DoDespawnSummons(true);
+        DoDespawnSummons();
 
         m_rangeMode = true;
         m_meleeEnabled = false;
@@ -394,7 +394,7 @@ struct boss_kaelthasAI : public ScriptedAI
         reader.PSendSysMessage("Kael'thas is currently in phase %u", uint32(m_uiPhase));
     }
 
-    void ReceiveAIEvent(AIEventType eventType, Unit* sender, Unit* invoker, uint32 miscValue) override
+    void ReceiveAIEvent(AIEventType eventType, Unit* /*sender*/, Unit* /*invoker*/, uint32 /*miscValue*/) override
     {
         if (eventType == AI_EVENT_CUSTOM_A)
         {
@@ -402,7 +402,7 @@ struct boss_kaelthasAI : public ScriptedAI
         }
     }
 
-    void DoDespawnSummons(bool bIsEventEnd = false)
+    void DoDespawnSummons()
     {
         for (GuidList::const_iterator itr = m_lSummonedGuidList.begin(); itr != m_lSummonedGuidList.end(); ++itr)
         {
@@ -457,7 +457,7 @@ struct boss_kaelthasAI : public ScriptedAI
         if (m_pInstance)
             m_pInstance->SetData(TYPE_KAELTHAS, DONE);
 
-        DoDespawnSummons(true);
+        DoDespawnSummons();
         ResetSize();
     }
 
@@ -1190,7 +1190,7 @@ struct boss_kaelthasAI : public ScriptedAI
                             {
                                 m_creature->SetLevitate(true);
                                 m_creature->SetHover(true);
-                                m_creature->GetMotionMaster()->MovePoint(POINT_ID_AIR, flightPos[0], flightPos[1], flightPos[2]);
+                                m_creature->GetMotionMaster()->MovePoint(POINT_ID_AIR, flightPos[0], flightPos[1], flightPos[2], true, FORCED_MOVEMENT_WALK);
                                 m_phaseTransitionTimer = 0;
                                 m_phaseTransitionStage = 2;
                                 m_phaseTransitionTimer = 16000;
@@ -1232,7 +1232,7 @@ struct boss_kaelthasAI : public ScriptedAI
                             }
                             case 4:
                             {
-                                m_creature->GetMotionMaster()->MovePoint(POINT_ID_LAND, landPos[0], landPos[1], landPos[2]);
+                                m_creature->GetMotionMaster()->MovePoint(POINT_ID_LAND, landPos[0], landPos[1], landPos[2], true, FORCED_MOVEMENT_WALK);
                                 m_phaseTransitionTimer = 0;
                                 break;
                             }
@@ -1415,27 +1415,26 @@ struct advisor_base_ai : public ScriptedAI
         }
     }
 
-    void DamageTaken(Unit* /*pDoneby*/, uint32& uiDamage, DamageEffectType /*damagetype*/) override
+    void DamageTaken(Unit* /*pDoneby*/, uint32& damage, DamageEffectType /*damagetype*/, SpellEntry const* /*spellInfo*/) override
     {
         // Allow fake death only in the first phase
         if (!m_bCanFakeDeath)
             return;
 
-        if (uiDamage < m_creature->GetHealth())
+        if (damage < m_creature->GetHealth())
             return;
 
         // Make sure it won't die by accident
         if (m_bFakeDeath)
         {
-            uiDamage = 0;
+            damage = std::min(damage, m_creature->GetHealth() - 1);
             return;
         }
 
-        uiDamage = 0;
+        damage = std::min(damage, m_creature->GetHealth() - 1);
         m_bFakeDeath = true;
 
         m_creature->InterruptNonMeleeSpells(true);
-        m_creature->SetHealth(1);
         m_creature->StopMoving();
         m_creature->ClearComboPointHolders();
         m_creature->RemoveAllAurasOnDeath();
@@ -1518,7 +1517,7 @@ struct boss_thaladred_the_darkenerAI : public advisor_base_ai
         advisor_base_ai::Reset();
     }
 
-    void Aggro(Unit* pWho) override
+    void Aggro(Unit* /*pWho*/) override
     {
         DoScriptText(SAY_THALADRED_AGGRO, m_creature);
     }
@@ -1879,20 +1878,20 @@ struct mob_phoenix_tkAI : public ScriptedAI
         ScriptedAI::EnterEvadeMode();
     }
 
-    void DamageTaken(Unit* /*pKiller*/, uint32& uiDamage, DamageEffectType /*damagetype*/) override
+    void DamageTaken(Unit* /*pKiller*/, uint32& damage, DamageEffectType /*damagetype*/, SpellEntry const* /*spellInfo*/) override
     {
-        if (uiDamage < m_creature->GetHealth())
+        if (damage < m_creature->GetHealth())
             return;
 
         // Prevent glitch if in fake death
         if (m_bFakeDeath)
         {
-            uiDamage = 0;
+            damage = std::min(damage, m_creature->GetHealth() - 1);
             return;
         }
 
         // prevent death
-        uiDamage = 0;
+        damage = std::min(damage, m_creature->GetHealth() - 1);
         DoSetFakeDeath();
     }
 
@@ -1901,7 +1900,6 @@ struct mob_phoenix_tkAI : public ScriptedAI
         m_bFakeDeath = true;
 
         m_creature->InterruptNonMeleeSpells(false);
-        m_creature->SetHealth(1);
         m_creature->StopMoving();
         m_creature->ClearComboPointHolders();
         m_creature->RemoveAllAurasOnDeath();

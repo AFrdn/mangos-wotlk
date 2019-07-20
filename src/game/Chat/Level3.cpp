@@ -1686,7 +1686,7 @@ bool ChatHandler::HandleUnLearnCommand(char* args)
     return true;
 }
 
-bool ChatHandler::HandleCooldownListCommand(char* args)
+bool ChatHandler::HandleCooldownListCommand(char* /*args*/)
 {
     Unit* target = getSelectedUnit();
     if (!target)
@@ -2406,19 +2406,41 @@ bool ChatHandler::HandleLearnAllGMCommand(char* /*args*/)
 {
     static uint32 gmSpellList[] =
     {
-        24347,                                            // Become A Fish, No Breath Bar
-        35132,                                            // Visual Boom
-        38488,                                            // Attack 4000-8000 AOE
-        38795,                                            // Attack 2000 AOE + Slow Down 90%
-        15712,                                            // Attack 200
-        1852,                                             // GM Spell Silence
-        31899,                                            // Kill
-        31924,                                            // Kill
-        29878,                                            // Kill My Self
-        26644,                                            // More Kill
-
-        28550,                                            // Invisible 24
-        23452                                             // Invisible + Target
+        11,     // Frostbolt of Ages                1000 damage, no cooldown
+        13,     // Swim Speed (TEST)
+        26,     // Bind Self (TEST)                 sets hearthstone to current location
+        47,     // Sprint (TEST)
+        260,    // Charm (TEST)
+        265,    // Area Death (TEST)
+        530,    // Charm (Possess)
+        1908,   // Uber Heal Over Time
+        2583,   // Debug Spell Reflection (Debug)
+        2650,   // Tame Pet (TEST)
+        2653,   // Damage 100 (TEST)
+        2654,   // Summon Tamed (TEST)
+        5259,   // Disarm (TEST)
+        5696,   // Charge (TEST)
+        9454,   // Freeze                           permanent stun, useful for holding misbehaving players
+        10032,  // Uber Stealth
+        18800,  // Light Test
+        18209,  // Test Grow
+        18210,  // Test Shrink
+        23452,  // Invisibility
+        23775,  // Stun Forever
+        24199,  // Knockback 35
+        35182,  // Banish
+        35874,  // Master Buff (Physical)           525 AP, +14 all stats, 10% to all stats
+        35912,  // Master Buff (Magical)            54 Int, 49 mp/5, 10% to all stats
+        38505,  // Shackle
+        38734,  // Master Ranged Buff               220 Ranged AP, +18 all stats, 10% to all stats
+        39258,  // Automation Root Spell (QAE)      AoE permanent root
+        40678,  // Super Jump
+        40733,  // Divine Shield                    infinite duration bubble
+        43097,  // Summon All Players
+        45590,  // QA DoT Debug 1000                1000 damage per tick for 30 seconds, stackable
+        45813,  // QA Debug Instant Cast Buff
+        46876,  // QAE Drunk Effect
+        0
     };
 
     for (uint32 spell : gmSpellList)
@@ -3475,7 +3497,7 @@ bool ChatHandler::HandleLookupSpellCommand(char* args)
         SpellEntry const* spellInfo = sSpellTemplate.LookupEntry<SpellEntry>(id);
         if (spellInfo)
         {
-            int loc = GetSessionDbcLocale();
+            int loc = int(LOCALE_enUS);
             std::string name = spellInfo->SpellName[loc];
             if (name.empty())
                 continue;
@@ -3855,7 +3877,7 @@ bool ChatHandler::HandleGuildRankCommand(char* args)
     if (!ExtractPlayerTarget(&nameStr, &target, &target_guid, &target_name))
         return false;
 
-    uint32 glId   = target ? target->GetGuildId() : Player::GetGuildIdFromDB(target_guid);
+    uint32 glId = target ? target->GetGuildId() : Player::GetGuildIdFromDB(target_guid);
     if (!glId)
         return false;
 
@@ -3874,7 +3896,18 @@ bool ChatHandler::HandleGuildRankCommand(char* args)
     if (!slot)
         return false;
 
-    slot->ChangeRank(newrank);
+    if (newrank == GR_GUILDMASTER)
+    {
+        MemberSlot* leaderSlot = targetGuild->GetMemberSlot(targetGuild->GetLeaderGuid());
+        if (!leaderSlot)
+            return false;
+
+        leaderSlot->ChangeRank(GR_OFFICER);
+        targetGuild->SetLeader(target_guid);
+    }
+    else
+        slot->ChangeRank(newrank);
+
     return true;
 }
 
@@ -3928,27 +3961,26 @@ bool ChatHandler::HandleGetDistanceCommand(char* args)
     }
 
     Player* player = m_session->GetPlayer();
-    float dx = player->GetPositionX() - obj->GetPositionX();
-    float dy = player->GetPositionY() - obj->GetPositionY();
-    float dz = player->GetPositionZ() - obj->GetPositionZ();
 
-    PSendSysMessage(LANG_DISTANCE, player->GetDistance(obj), player->GetDistance(obj, false), sqrt(dx * dx + dy * dy + dz * dz));
+    PSendSysMessage("Raw distance: %.2f", sqrt(player->GetDistance(obj, true, DIST_CALC_NONE)));
+
+    PSendSysMessage("P -> T Combat distance: %.2f", player->GetDistance(obj, true, DIST_CALC_COMBAT_REACH));
+    PSendSysMessage("P -> T Bounding distance: %.2f", player->GetDistance(obj, true, DIST_CALC_BOUNDING_RADIUS));
+    PSendSysMessage("T -> P Combat distance: %.2f", obj->GetDistance(player, true, DIST_CALC_COMBAT_REACH));
+    PSendSysMessage("T -> P Bounding distance: %.2f", obj->GetDistance(player, true, DIST_CALC_BOUNDING_RADIUS));
 
     Unit* target = dynamic_cast<Unit*>(obj);
-
     PSendSysMessage("P -> T Attack distance: %.2f", player->GetAttackDistance(target));
     PSendSysMessage("P -> T Visible distance: %.2f", player->GetVisibleDistance(target));
     PSendSysMessage("P -> T Visible distance (Alert): %.2f", player->GetVisibleDistance(target, true));
-    PSendSysMessage("P -> T Can trigger alert: %s", !player->IsWithinDistInMap(target, target->GetVisibleDistance(player)) ? "true" : "false");
     PSendSysMessage("T -> P Attack distance: %.2f", target->GetAttackDistance(player));
     PSendSysMessage("T -> P Visible distance: %.2f", target->GetVisibleDistance(player));
     PSendSysMessage("T -> P Visible distance (Alert): %.2f", target->GetVisibleDistance(player, true));
-    PSendSysMessage("T -> P Can trigger alert: %s", !target->IsWithinDistInMap(player, player->GetVisibleDistance(target)) ? "true" : "false");
 
     return true;
 }
 
-bool ChatHandler::HandleGetLosCommand(char* args)
+bool ChatHandler::HandleGetLosCommand(char* /*args*/)
 {
     Player* player = m_session->GetPlayer();
     Unit* target = getSelectedUnit();
@@ -4038,6 +4070,8 @@ bool ChatHandler::HandleDamageCommand(char* args)
     // flat melee damage without resistance/etc reduction
     if (!*args)
     {
+        uint32 absorb = 0;
+        player->DealDamageMods(target, damage, &absorb, DIRECT_DAMAGE);
         player->DealDamage(target, damage, nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
         if (target != player)
             player->SendAttackStateUpdate(HITINFO_NORMALSWING2, target, SPELL_SCHOOL_MASK_NORMAL, damage, 0, 0, VICTIMSTATE_NORMAL, 0);
@@ -4161,13 +4195,15 @@ bool ChatHandler::HandleAuraCommand(char* args)
     for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
         uint8 eff = spellInfo->Effect[i];
-        if (eff >= TOTAL_SPELL_EFFECTS)
+        if (eff >= MAX_SPELL_EFFECTS)
             continue;
         if (IsAreaAuraEffect(eff)           ||
                 eff == SPELL_EFFECT_APPLY_AURA  ||
                 eff == SPELL_EFFECT_PERSISTENT_AREA_AURA)
         {
-            Aura* aur = CreateAura(spellInfo, SpellEffectIndex(i), nullptr, holder, target);
+            int32 basePoints = spellInfo->CalculateSimpleValue(SpellEffectIndex(i));
+            int32 damage = 0; // no damage cos caster doesnt exist
+            Aura* aur = CreateAura(spellInfo, SpellEffectIndex(i), &damage, &basePoints, holder, target);
             holder->AddAura(aur, SpellEffectIndex(i));
         }
     }
@@ -6382,27 +6418,17 @@ bool ChatHandler::HandleMovegensCommand(char* /*args*/)
                 Unit* target = nullptr;
                 float distance = 0.f;
                 float angle = 0.f;
-                if (unit->GetTypeId() == TYPEID_PLAYER)
-                {
-                    ChaseMovementGenerator<Player> const* movegen = static_cast<ChaseMovementGenerator<Player> const*>(*itr);
-                    target = movegen->GetCurrentTarget();
-                    distance = movegen->GetOffset();
-                    angle = movegen->GetAngle();
-                }
-                else
-                {
-                    ChaseMovementGenerator<Creature> const* movegen = static_cast<ChaseMovementGenerator<Creature> const*>(*itr);
-                    target = movegen->GetCurrentTarget();
-                    distance = movegen->GetOffset();
-                    angle = movegen->GetAngle();
-                }
+                ChaseMovementGenerator const* movegen = static_cast<ChaseMovementGenerator const*>(*itr);
+                target = movegen->GetCurrentTarget();
+                distance = movegen->GetOffset();
+                angle = movegen->GetAngle();
 
                 if (!target)
                     SendSysMessage(LANG_MOVEGENS_CHASE_NULL);
                 else if (target->GetTypeId() == TYPEID_PLAYER)
-                    PSendSysMessage(LANG_MOVEGENS_CHASE_PLAYER, target->GetName(), target->GetGUIDLow(), distance, angle);
+                    PSendSysMessage(LANG_MOVEGENS_CHASE_PLAYER, target->GetName(), target->GetGUIDLow(), distance, angle, ChaseModes[movegen->GetCurrentMode()]);
                 else
-                    PSendSysMessage(LANG_MOVEGENS_CHASE_CREATURE, target->GetName(), target->GetGUIDLow(), distance, angle);
+                    PSendSysMessage(LANG_MOVEGENS_CHASE_CREATURE, target->GetName(), target->GetGUIDLow(), distance, angle, ChaseModes[movegen->GetCurrentMode()]);
                 break;
             }
             case FOLLOW_MOTION_TYPE:
@@ -6443,6 +6469,22 @@ bool ChatHandler::HandleMovegensCommand(char* /*args*/)
                 break;
         }
     }
+    return true;
+}
+
+bool ChatHandler::HandleMovespeedShowCommand(char* /*args*/)
+{
+    Unit* unit = getSelectedUnit();
+    if (!unit)
+    {
+        SendSysMessage(LANG_SELECT_CHAR_OR_CREATURE);
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    PSendSysMessage("%s speeds:", unit->GetName());
+    PSendSysMessage("Walk speed %f, Run speed %f, Swim speed %f, Fly speed %f", unit->GetSpeed(MOVE_WALK), unit->GetSpeed(MOVE_RUN), unit->GetSpeed(MOVE_SWIM), unit->GetSpeed(MOVE_FLIGHT));
+
     return true;
 }
 
@@ -7279,7 +7321,7 @@ bool ChatHandler::HandleArenaSeasonRewardsCommand(char* args)
     return true;
 }
 
-bool ChatHandler::HandleArenaDataReset(char* args)
+bool ChatHandler::HandleArenaDataReset(char* /*args*/)
 {
     PSendSysMessage("Resetting all arena data.");
     sBattleGroundMgr.ResetAllArenaData();
@@ -7495,7 +7537,7 @@ bool ChatHandler::HandleMmapTestHeight(char* args)
     return true;
 }
 
-bool ChatHandler::HandleServerResetAllRaidCommand(char* args)
+bool ChatHandler::HandleServerResetAllRaidCommand(char* /*args*/)
 {
     PSendSysMessage("Global raid instances reset, all players in raid instances will be teleported to homebind!");
     sMapPersistentStateMgr.GetScheduler().ResetAllRaid();

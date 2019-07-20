@@ -400,6 +400,10 @@ void WorldSession::HandleSetSelectionOpcode(WorldPacket& recv_data)
 
     _player->SetSelectionGuid(guid);
 
+    if (Unit* mover = _player->GetMover()) // when player has a mover and the mover is a 
+        if (mover != _player)
+            mover->SetSelectionGuid(guid);
+
     // update reputation list if need
     Unit* unit = ObjectAccessor::GetUnit(*_player, guid);   // can select group members at diff maps
     if (!unit)
@@ -958,31 +962,6 @@ void WorldSession::HandleNextCinematicCamera(WorldPacket& /*recv_data*/)
     DEBUG_LOG("WORLD: Received opcode CMSG_NEXT_CINEMATIC_CAMERA");
     // Sent by client when cinematic actually begun. So we begin the server side process
     GetPlayer()->StartCinematic();
-}
-
-void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recv_data)
-{
-    /*  WorldSession::Update( WorldTimer::getMSTime() );*/
-    DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_TIME_SKIPPED");
-
-    ObjectGuid guid;
-
-    recv_data >> guid.ReadAsPacked();
-    recv_data >> Unused<uint32>();
-
-    /*
-        ObjectGuid guid;
-        uint32 time_skipped;
-        recv_data >> guid;
-        recv_data >> time_skipped;
-        DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_TIME_SKIPPED");
-
-        /// TODO
-        must be need use in mangos
-        We substract server Lags to move time ( AntiLags )
-        for exmaple
-        GetPlayer()->ModifyLastMoveTime( -int32(time_skipped) );
-    */
 }
 
 void WorldSession::HandleFeatherFallAck(WorldPacket& recv_data)

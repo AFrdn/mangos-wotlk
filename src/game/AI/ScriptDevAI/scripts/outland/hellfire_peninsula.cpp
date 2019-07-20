@@ -36,6 +36,8 @@ EndContentData */
 #include "AI/ScriptDevAI/include/precompiled.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "AI/ScriptDevAI/base/pet_ai.h"
+#include "AI/ScriptDevAI/base/TimerAI.h"
+#include "Entities/TemporarySpawn.h"
 
 /*######
 ## npc_aeranas
@@ -141,7 +143,7 @@ struct npc_ancestral_wolfAI : public npc_escortAI
 
     void AttackStart(Unit* /*pWho*/) override { }
     void MoveInLineOfSight(Unit* /*pWho*/) override { }
-    void UpdateEscortAI(const uint32 uiDiff) override { };
+    void UpdateEscortAI(const uint32 /*uiDiff*/) override { };
 
     void WaypointReached(uint32 uiPointId) override
     {
@@ -895,7 +897,7 @@ struct npc_anchorite_baradaAI : public ScriptedAI, private DialogueHelper
         }
     }
 
-    void JustDied(Unit* pKiller) override
+    void JustDied(Unit* /*pKiller*/) override
     {
         if (m_bEventInProgress)
         {
@@ -1043,31 +1045,93 @@ enum
     SPELL_PYROBLAST                 = 33975,
     SPELL_FROST_NOVA                = 11831,
     SPELL_FIREBALL                  = 20823,
+
+    FACTION_ALLEDIS_FRIENDLY        = 35, // after script combat faction
+    FACTION_ALLEDIS_HOSTILE         = 634, // during script combat faction
+
+    POINT_MOVE_DISTANCE = 1,
+};
+
+enum AledisActions // order based on priority
+{
+    ALEDIS_ACTION_PYROBLAST,
+    ALEDIS_ACTION_FROSTNOVA,
+    ALEDIS_ACTION_FIREBALL,
+    ALEDIS_ACTION_MAX
 };
 
 struct npc_magister_aledisAI : public ScriptedAI
 {
-    npc_magister_aledisAI(Creature* pCreature) : ScriptedAI(pCreature)
+    npc_magister_aledisAI(Creature* creature) : ScriptedAI(creature)
     {
-        m_bIsDefeated = false;
         Reset();
     }
 
-    uint32 m_uiPyroblastTimer;
-    uint32 m_uiFrostNovaTimer;
-    uint32 m_uiFireballTimer;
-
     bool m_bIsDefeated;
+    bool m_bAllyAttacker;
+
+    uint32 m_actionTimers[ALEDIS_ACTION_MAX];
+    bool m_actionReadyStatus[ALEDIS_ACTION_MAX];
 
     void Reset() override
     {
+        m_bAllyAttacker = false;
+        m_bIsDefeated = false;
+
+        m_actionTimers[ALEDIS_ACTION_PYROBLAST] = GetInitialActionTimer(ALEDIS_ACTION_PYROBLAST);
+        m_actionTimers[ALEDIS_ACTION_FROSTNOVA] = GetInitialActionTimer(ALEDIS_ACTION_FROSTNOVA);
+        m_actionTimers[ALEDIS_ACTION_FIREBALL] = GetInitialActionTimer(ALEDIS_ACTION_FIREBALL);
+
+        for (uint32 i = 0; i < ALEDIS_ACTION_MAX; ++i)
+            m_actionReadyStatus[i] = false;
+
+        m_attackDistance = 20.f;
+
+        SetCombatMovement(true);
+        SetCombatScriptStatus(false);
+
+        m_creature->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
+    }
+
+    uint32 GetInitialActionTimer(AledisActions id)
+    {
+        switch (id)
+        {
+            case ALEDIS_ACTION_PYROBLAST: return urand(10000, 14000);
+            case ALEDIS_ACTION_FROSTNOVA: return urand(3000, 9000);
+            case ALEDIS_ACTION_FIREBALL: return 1000;
+            default: return 0;
+        }
+    }
+
+    uint32 GetSubsequentActionTimer(AledisActions id)
+    {
+        switch (id)
+        {
+            case ALEDIS_ACTION_PYROBLAST: return urand(18000, 21000);
+            case ALEDIS_ACTION_FROSTNOVA: return urand(12000, 16000);
+            case ALEDIS_ACTION_FIREBALL: return urand(3000, 4000);
+            default: return 0;
+        }
+    }
+
+    void EvadeReset()
+    {
+        m_bAllyAttacker = false;
         m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER);
+    }
 
-        m_uiPyroblastTimer      = urand(10000, 14000);
-        m_uiFrostNovaTimer      = 0;
-        m_uiFireballTimer       = 1000;
+    void AttackStart(Unit* pWho) override
+    {
+        m_creature->RemoveFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
 
-        m_attackDistance = 10.0f;
+        if (m_creature->Attack(pWho, false))
+        {
+            m_creature->AddThreat(pWho);
+            m_creature->SetInCombatWith(pWho);
+            pWho->SetInCombatWith(m_creature);
+            HandleMovementOnAttackStart(pWho);
+        }
     }
 
     void EnterEvadeMode() override
@@ -1086,12 +1150,92 @@ struct npc_magister_aledisAI : public ScriptedAI
                 m_creature->GetMotionMaster()->MoveWaypoint();
             }
             else
+            {
                 m_creature->GetMotionMaster()->MoveIdle();
+                EvadeReset();
+            }
         }
 
         m_creature->SetLootRecipient(nullptr);
+    }
 
-        Reset();
+    void ExecuteActions()
+    {
+        if (!CanExecuteCombatAction())
+            return;
+
+        for (uint32 i = 0; i < ALEDIS_ACTION_MAX; ++i)
+        {
+            if (m_actionReadyStatus[i])
+            {
+                switch (i)
+                {
+                    case ALEDIS_ACTION_PYROBLAST:
+                    {
+                        if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_PYROBLAST) == CAST_OK)
+                        {
+                            m_actionTimers[i] = GetSubsequentActionTimer(AledisActions(i));
+                            m_actionReadyStatus[i] = false;
+                        }
+                        continue;
+                    }
+                    case ALEDIS_ACTION_FROSTNOVA:
+                    {
+                        if (Unit* target = m_creature->SelectAttackingTarget(ATTACKING_TARGET_NEAREST_BY, 0, SPELL_FROST_NOVA, SELECT_FLAG_PLAYER | SELECT_FLAG_USE_EFFECT_RADIUS))
+                        {
+                            if (DoCastSpellIfCan(m_creature, SPELL_FROST_NOVA) == CAST_OK)
+                            {
+                                m_actionTimers[i] = GetSubsequentActionTimer(AledisActions(i));
+                                m_actionReadyStatus[i] = false;
+                            }
+                            continue;
+                        }
+                    }
+                    case ALEDIS_ACTION_FIREBALL:
+                    {
+                        if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_FIREBALL) == CAST_OK)
+                        {
+                            m_actionTimers[i] = GetSubsequentActionTimer(AledisActions(i));
+                            m_actionReadyStatus[i] = false;
+                        }
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    void JustStoppedMovementOfTarget(SpellEntry const* spell, Unit* victim) override
+    {
+        switch (spell->Id)
+        {
+        case SPELL_FROST_NOVA:
+            if (m_creature->getVictim() != victim) // frostnova hit others, resist case
+                break;
+            DistanceYourself();
+            break;
+        }
+    }
+
+    void DistanceYourself()
+    {
+        if (Unit* victim = m_creature->getVictim()) // make sure target didnt die
+        {
+            float distance = DISTANCING_CONSTANT + m_creature->GetCombinedCombatReach(victim, true);
+            m_creature->GetMotionMaster()->DistanceYourself(distance);
+        }
+    }
+
+    void DistancingStarted()
+    {
+        SetCombatScriptStatus(true);
+        SetMeleeEnabled(false);
+    }
+
+    void DistancingEnded()
+    {
+        SetCombatScriptStatus(false);
+        SetMeleeEnabled(true);
     }
 
     void UpdateAI(const uint32 uiDiff) override
@@ -1099,43 +1243,43 @@ struct npc_magister_aledisAI : public ScriptedAI
         if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
             return;
 
-        if (!m_bIsDefeated && m_creature->GetHealthPercent() < 25.0f)
+        for (uint32 i = 0; i < ALEDIS_ACTION_MAX; ++i)
         {
-            // evade when defeated; faction is reset automatically
-            m_bIsDefeated = true;
-            EnterEvadeMode();
-
-            m_creature->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER);
-            DoScriptText(SAY_ALEDIS_DEFEAT, m_creature);
-            m_creature->ForcedDespawn(60000);
-            return;
+            if (!m_actionReadyStatus[i])
+            {
+                if (m_actionTimers[i] <= uiDiff)
+                {
+                    m_actionTimers[i] = 0;
+                    m_actionReadyStatus[i] = true;
+                }
+                else
+                    m_actionTimers[i] -= uiDiff;
+            }
         }
 
-        if (m_uiPyroblastTimer < uiDiff)
+        if (!m_bAllyAttacker && !m_bIsDefeated && m_creature->GetHealthPercent() < 20.0f)
         {
-            if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_PYROBLAST) == CAST_OK)
-                m_uiPyroblastTimer = urand(18000, 21000);
-        }
-        else
-            m_uiPyroblastTimer -= uiDiff;
+            if (m_creature->getFaction() == FACTION_ALLEDIS_HOSTILE)
+            {
+                // evade when defeated; faction is reset automatically
+                m_bIsDefeated = true;
+                m_creature->SetFactionTemporary(FACTION_ALLEDIS_FRIENDLY, TEMPFACTION_RESTORE_RESPAWN);
+                EnterEvadeMode();
+                m_creature->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER);
 
-        if (m_uiFireballTimer < uiDiff)
+                DoScriptText(SAY_ALEDIS_DEFEAT, m_creature);
+                m_creature->ForcedDespawn(30000);
+                return;
+            }
+            else
+                m_bAllyAttacker = true;
+        }
+
+        if (!m_bIsDefeated)
         {
-            if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_FIREBALL) == CAST_OK)
-                m_uiFireballTimer = urand(3000, 4000);
+            ExecuteActions();
+            DoMeleeAttackIfReady();
         }
-        else
-            m_uiFireballTimer -= uiDiff;
-
-        if (m_uiFrostNovaTimer < uiDiff)
-        {
-            if (DoCastSpellIfCan(m_creature, SPELL_FROST_NOVA) == CAST_OK)
-                m_uiFrostNovaTimer = urand(12000, 16000);
-        }
-        else
-            m_uiFrostNovaTimer -= uiDiff;
-
-        DoMeleeAttackIfReady();
     }
 };
 
@@ -1198,7 +1342,7 @@ struct npc_living_flareAI : public ScriptedPetAI
         }
     }
 
-    void MovementInform(uint32 uiMovementType, uint32 uiPointId) override
+    void MovementInform(uint32 /*uiMovementType*/, uint32 uiPointId) override
     {
         if (!uiPointId)
             return;
@@ -1480,6 +1624,442 @@ UnitAI* GetAI_nazgrel(Creature* pCreature)
     return new npc_nazgrelAI(pCreature);
 }
 
+/*
+#############
+## npc_vindicator_sedai
+#############
+*/
+
+enum
+{
+    QUEST_SEERS_RELIC = 9545,
+
+    NPC_SEDAI         = 17404,
+    NPC_SEDAI_CORPSE  = 16852,
+    NPC_MAGHAR_ESCORT = 17417,
+    NPC_FEL_ORC       = 17418,
+    NPC_KRUN          = 17405,
+    NPC_SEDAI_QCM     = 17413,
+
+    SAY_EVENT_MAGHAR_ESCORT = -1015066,
+    SAY_EVENT_SEDAI_1       = -1015067,
+    SAY_EVENT_SEDAI_2       = -1015068,
+    SAY_EVENT_SEDAI_3       = -1015069,
+    SAY_EVENT_SEDAI_4       = -1015070,
+    SAY_EVENT_KRUN          = -1015071,
+
+    SPELL_EXECUTE_SEDAI     = 30462,
+    SPELL_HOLY_FIRE         = 17141,
+    SPELL_HAMMER_OF_JUSTICE = 13005,
+    SPELL_KICK              = 30460
+};
+
+enum SedaiActions : uint32
+{
+    SEDAI_COMBAT_ACTION_HOLYFIRE,
+    SEDAI_COMBAT_ACTION_HAMMER,
+    SEDAI_COMBAT_ACTION_MAX,
+
+    SEDAI_ACTION_FACE_ESCORT,
+    SEDAI_ACTION_ESCORT_KICK,
+    SEDAI_ACTION_ESCORT_SAY,
+    SEDAI_ACTION_SEDAI_KNEEL,
+    SEDAI_ACTION_ESCORTS_MOVE_1,
+    SEDAI_ACTION_FELORC_SPAWN_ATTACK,
+    SEDAI_ACTION_QUEST_COMPLETE,
+    SEDAI_ACTION_SEDAI_MOVE_2,
+    SEDAI_ACTION_SEDAI_START_ATTACK,
+};
+
+struct npc_vindicator_sedaiAI : public ScriptedAI, public CombatActions
+{
+    npc_vindicator_sedaiAI(Creature* creature) : ScriptedAI(creature), CombatActions(SEDAI_COMBAT_ACTION_MAX)
+    {
+        m_creature->SetActiveObjectState(true);
+        SetReactState(REACT_DEFENSIVE);
+
+        AddCombatAction(SEDAI_COMBAT_ACTION_HOLYFIRE, 0u);
+        AddCombatAction(SEDAI_COMBAT_ACTION_HAMMER, 0u);
+
+        AddCustomAction(SEDAI_ACTION_FACE_ESCORT, true, [&]()
+        {
+            if (Creature* maghar = m_creature->GetMap()->GetCreature(m_maghar))
+                m_creature->SetFacingToObject(maghar);
+
+            ResetTimer(SEDAI_ACTION_ESCORT_KICK, 2000u);
+        });
+
+        AddCustomAction(SEDAI_ACTION_ESCORT_KICK, true, [&]()
+        {
+            if (Creature* corpse = GetClosestCreatureWithEntry(m_creature, NPC_SEDAI_CORPSE, 10.0f, false))
+            {
+                corpse->GetPosition(m_positionCorpse[0], m_positionCorpse[1], m_positionCorpse[2]);
+                m_creature->SetFacingToObject(corpse);
+            }
+
+            if (Creature* maghar = m_creature->GetMap()->GetCreature(m_maghar))
+                maghar->AI()->DoCastSpellIfCan(m_creature, SPELL_KICK);
+
+            ResetTimer(SEDAI_ACTION_ESCORT_SAY, 2000);
+        });
+
+        AddCustomAction(SEDAI_ACTION_ESCORT_SAY, true, [&]()
+        {
+            if (Creature* maghar = m_creature->GetMap()->GetCreature(m_magharTwo))
+                DoScriptText(SAY_EVENT_MAGHAR_ESCORT, maghar);
+            ResetTimer(SEDAI_ACTION_SEDAI_KNEEL, 1000);
+        });
+
+        AddCustomAction(SEDAI_ACTION_SEDAI_KNEEL, true, [&]()
+        {
+            m_creature->SetSheath(SHEATH_STATE_UNARMED);
+            m_creature->SetStandState(UNIT_STAND_STATE_KNEEL);
+            ResetTimer(SEDAI_ACTION_ESCORTS_MOVE_1, 1000);
+        });
+
+        AddCustomAction(SEDAI_ACTION_ESCORTS_MOVE_1, true, [&]()
+        {
+            Map* map = m_creature->GetMap();
+            if (Creature* maghar = map->GetCreature(m_maghar))
+                maghar->GetMotionMaster()->MovePoint(2, 218.7385f, 4128.742f, 81.00686f);
+            if (Creature* maghar = map->GetCreature(m_magharTwo))
+                maghar->GetMotionMaster()->MovePoint(2, 219.5054f, 4125.231f, 81.05459f);
+            ResetTimer(SEDAI_ACTION_FELORC_SPAWN_ATTACK, 3000);
+        });
+
+        AddCustomAction(SEDAI_ACTION_FELORC_SPAWN_ATTACK, true, [&]()
+        {
+            if (Creature* orc = m_creature->SummonCreature(NPC_FEL_ORC, 258.168854f, 4109.307617f, 91.639290f, 2.644194f, TEMPSPAWN_CORPSE_TIMED_DESPAWN, 4000, true))
+            {
+                m_felOrc = orc->GetObjectGuid();
+                if (Creature* maghar = m_creature->GetMap()->GetCreature(m_maghar))
+                {
+                    orc->AI()->AttackStart(maghar);
+                    maghar->AI()->AttackStart(orc);
+                }
+            }
+            if (Creature* orc = m_creature->SummonCreature(NPC_FEL_ORC, 256.429932f, 4105.590820f, 90.982086f, 2.734515f, TEMPSPAWN_CORPSE_TIMED_DESPAWN, 4000, true))
+            {
+                m_felOrcTwo = orc->GetObjectGuid();
+                if (Creature* maghar = m_creature->GetMap()->GetCreature(m_magharTwo))
+                {
+                    orc->AI()->AttackStart(maghar);
+                    maghar->AI()->AttackStart(orc);
+                }
+            }
+            ResetTimer(SEDAI_ACTION_QUEST_COMPLETE, 1000);
+        });
+
+        AddCustomAction(SEDAI_ACTION_QUEST_COMPLETE, true, [&]()
+        {
+            if (Player* player = (Player*)m_creature->GetMap()->GetUnit(m_creature->GetSpawnerGuid()))
+            {
+                if (Creature* qcm = GetClosestCreatureWithEntry(m_creature, NPC_SEDAI_QCM, 30.0f))
+                {
+                    player->RewardPlayerAndGroupAtEventCredit(qcm->GetEntry(), qcm);
+                    player->RewardPlayerAndGroupAtEventExplored(QUEST_SEERS_RELIC, qcm);
+                }
+                DoScriptText(SAY_EVENT_SEDAI_1, m_creature);
+                ResetTimer(SEDAI_ACTION_SEDAI_MOVE_2, 6000);
+            }
+        });
+
+        AddCustomAction(SEDAI_ACTION_SEDAI_MOVE_2, true, [&]()
+        {
+            m_creature->SetStandState(UNIT_STAND_STATE_STAND);
+            DoScriptText(SAY_EVENT_SEDAI_2, m_creature);
+            m_creature->GetMotionMaster()->MovePoint(2, 202.1543f, 4138.074f, 76.15149f);
+        });
+
+        AddCustomAction(SEDAI_ACTION_SEDAI_START_ATTACK, true, [&]()
+        {
+            ResetTimer(SEDAI_COMBAT_ACTION_HOLYFIRE, 25000);
+            ResetTimer(SEDAI_COMBAT_ACTION_HAMMER, 15000);
+
+            if (Creature* felOrc = m_creature->GetMap()->GetCreature(m_felOrcTwo))
+                m_creature->AI()->AttackStart(felOrc);
+        });
+    }
+
+    ObjectGuid m_maghar;
+    ObjectGuid m_magharTwo;
+    ObjectGuid m_felOrc;
+    ObjectGuid m_felOrcTwo;
+    ObjectGuid m_krun;
+
+    float m_positionCorpse[3];
+
+    void Reset() override
+    {
+        
+    }
+
+    void JustRespawned() override
+    {
+        if (Creature* maghar = m_creature->SummonCreature(NPC_MAGHAR_ESCORT, 216.0346f, 4125.61f, 80.22345f, 3.41032f, TEMPSPAWN_TIMED_OR_DEAD_DESPAWN, 300000, true))
+        {
+            maghar->SetCorpseDelay(20);
+            m_maghar = maghar->GetObjectGuid();
+            maghar->SetMaxHealth(1);
+            maghar->GetMotionMaster()->MovePoint(1, 199.061f, 4142.329f, 75.14999f);
+            maghar->GetMotionMaster()->MoveIdle();
+        }
+        if (Creature* maghar = m_creature->SummonCreature(NPC_MAGHAR_ESCORT, 214.1331f, 4123.221f, 79.6478f, 2.233855f, TEMPSPAWN_TIMED_OR_DEAD_DESPAWN, 300000, true))
+        {
+            maghar->SetCorpseDelay(20);
+            m_magharTwo = maghar->GetObjectGuid();
+            maghar->GetMotionMaster()->MovePoint(1, 196.8983f, 4140.25f, 74.4968f);
+            maghar->GetMotionMaster()->MoveIdle();
+        }
+
+        m_creature->GetMotionMaster()->MovePoint(1, 196.6698f, 4143.903f, 74.37656f);
+    }
+
+    void ExecuteActions() override
+    {
+        if (!CanExecuteCombatAction())
+            return;
+
+        for (uint32 i = 0; i < SEDAI_COMBAT_ACTION_MAX; ++i)
+        {
+            if (!GetActionReadyStatus(i))
+                continue;
+
+            switch (i)
+            {
+                case SEDAI_COMBAT_ACTION_HAMMER:
+                    if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_HAMMER_OF_JUSTICE) == CAST_OK)
+                    {
+                        SetActionReadyStatus(i, false);
+                        ResetTimer(i, 15000);
+                        return;
+                    }
+                    continue;
+                case SEDAI_COMBAT_ACTION_HOLYFIRE:
+                    if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_HOLY_FIRE) == CAST_OK)
+                    {
+                        SetActionReadyStatus(i, false);
+                        ResetTimer(i, 25000);
+                        return;
+                    }
+                    continue;
+            }
+        }
+    }
+
+    void MovementInform(uint32 /*movementType*/, uint32 data) override
+    {
+        switch (data)
+        {
+            case 1:
+            {
+                m_creature->GetMotionMaster()->MoveIdle();
+                ResetTimer(SEDAI_ACTION_FACE_ESCORT, 0);
+                break;
+            }
+            case 2:
+            {
+                if (Creature* felOrc = m_creature->GetMap()->GetCreature(m_felOrc))
+                    m_creature->SetFacingToObject(felOrc);
+
+                DoScriptText(SAY_EVENT_SEDAI_3, m_creature);
+                ResetTimer(SEDAI_ACTION_SEDAI_START_ATTACK, 1000);
+                break;
+            }
+            case 3:
+            {
+                if (Creature* krun = m_creature->SummonCreature(NPC_KRUN, 225.445526f, 4120.721191f, 82.345039f, 2.443936f, TEMPSPAWN_TIMED_DESPAWN, 60000, true))
+                {
+                    m_krun = krun->GetObjectGuid();
+                    krun->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+                    krun->SetWalk(false, true);
+                    krun->GetMotionMaster()->MovePoint(1, 202.904419f, 4138.468262f, 76.176216f);
+                }
+                DoScriptText(SAY_EVENT_SEDAI_4, m_creature);
+                m_creature->GetMotionMaster()->MoveIdle();
+                m_creature->SetSheath(SHEATH_STATE_UNARMED);
+                m_creature->SetStandState(UNIT_STAND_STATE_KNEEL);
+                break;
+            }
+        }
+    }
+
+    void JustDied(Unit* /*killer*/) override
+    {
+        if (Creature* krun = m_creature->GetMap()->GetCreature(m_krun))
+            m_creature->SetFacingToObject(krun);
+
+        if (Creature* qcm = GetClosestCreatureWithEntry(m_creature, NPC_SEDAI_QCM, 30.0f))
+            qcm->ForcedDespawn();
+    }
+
+    void JustReachedHome() override
+    {
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
+        m_creature->GetMotionMaster()->MovePoint(3, m_positionCorpse[0], m_positionCorpse[1], m_positionCorpse[2]);
+    }
+
+    void UpdateAI(const uint32 diff) override
+    {
+        UpdateTimers(diff, m_creature->isInCombat());
+
+        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+            return;
+
+        DoMeleeAttackIfReady();
+
+        ExecuteActions();
+    }
+};
+
+UnitAI* GetAI_npc_vindicator_sedai(Creature* creature)
+{
+    return new npc_vindicator_sedaiAI(creature);
+}
+
+/*
+##############
+## npc_krun
+##############
+*/
+
+enum KrunActions : uint32
+{
+    KRUN_ACTION_EXECUTE_SEDAI,
+    KRUN_ACTION_LAUGH,
+    KRUN_ACTION_DESPAWN
+};
+
+struct npc_krunAI : public ScriptedAI, public TimerManager
+{
+    npc_krunAI(Creature* creature) : ScriptedAI(creature)
+    {
+        AddCustomAction(KRUN_ACTION_EXECUTE_SEDAI, true, [&]()
+        {
+            DoScriptText(SAY_EVENT_KRUN, m_creature);
+            DoCastSpellIfCan(m_creature, SPELL_EXECUTE_SEDAI);
+            ResetTimer(KRUN_ACTION_LAUGH, 2000);
+        });
+
+        AddCustomAction(KRUN_ACTION_LAUGH, true, [&]()
+        {
+            m_creature->HandleEmote(EMOTE_ONESHOT_LAUGH);
+            ResetTimer(KRUN_ACTION_DESPAWN, 2000);
+        });
+
+        AddCustomAction(KRUN_ACTION_DESPAWN, true, [&]()
+        {
+            if (TemporarySpawn* summon = (TemporarySpawn*)m_creature)
+                summon->UnSummon();
+        });
+    }
+
+    void Reset() override
+    {
+        
+    }
+
+    void MovementInform(uint32 /*movementType*/, uint32 data) override
+    {
+        switch (data)
+        {
+            case 1:
+                m_creature->SetWalk(true, true);
+                m_creature->GetMotionMaster()->MovePoint(2, 193.358658f, 4149.128906f, 73.768143f);
+                break;
+            case 2:
+                m_creature->GetMotionMaster()->MoveIdle();
+                ResetTimer(KRUN_ACTION_EXECUTE_SEDAI, 1000);
+                break;
+        }
+    }
+
+    void UpdateAI(const uint32 diff) override
+    {
+        UpdateTimers(diff);
+    }
+};
+
+UnitAI* GetAI_npc_krun(Creature* creature)
+{
+    return new npc_krunAI(creature);
+}
+
+/*
+###############
+## npc_laughing_skull
+###############
+*/
+
+struct npc_laughing_skullAI : public ScriptedAI
+{
+    npc_laughing_skullAI(Creature* creature) : ScriptedAI(creature)
+    {
+        SetReactState(REACT_DEFENSIVE);
+        Reset();
+    }
+
+    void Reset() override {}
+
+    void JustReachedHome() override
+    {
+        m_creature->GetMotionMaster()->MoveIdle();
+    }
+};
+
+UnitAI* GetAI_npc_laughing_skull(Creature* creature)
+{
+    return new npc_laughing_skullAI(creature);
+}
+
+/*
+###############
+## npc_maghar_escort
+###############
+*/
+
+struct npc_maghar_escortAI : public ScriptedAI
+{
+    npc_maghar_escortAI(Creature* creature) : ScriptedAI(creature) { Reset(); }
+
+    void Reset() override
+    {
+
+    }
+
+    void EnterEvadeMode() override
+    {
+        if (!GetClosestCreatureWithEntry(m_creature, NPC_FEL_ORC, 60.0f))
+        {
+            if (TemporarySpawn* summon = (TemporarySpawn*)m_creature)
+                summon->UnSummon();
+        }
+    }
+
+    void JustReachedHome() override
+    {
+        m_creature->GetMotionMaster()->MoveIdle();
+    }
+};
+
+UnitAI* GetAI_npc_maghar_escort(Creature* creature)
+{
+    return new npc_maghar_escortAI(creature);
+}
+
+bool ProcessEventId_sedai_vision(uint32 /*eventId*/, Object* source, Object* /*target*/, bool /*isStart*/)
+{
+    if (Creature* sedai = GetClosestCreatureWithEntry((WorldObject*)source, NPC_SEDAI, 100.0f))
+        return false;
+    else
+    {
+        Player* player = (Player*)source;
+        sedai = player->SummonCreature(17404, 211.1362f, 4126.989f, 78.81913f, 2.281034f, TEMPSPAWN_TIMED_OR_DEAD_DESPAWN, 300000, true);
+        sedai->SetCorpseDelay(20);
+        return true;
+    }
+}
+
 void AddSC_hellfire_peninsula()
 {
     Script* pNewScript = new Script;
@@ -1545,5 +2125,26 @@ void AddSC_hellfire_peninsula()
     pNewScript->Name = "npc_nazgrel";
     pNewScript->GetAI = &GetAI_nazgrel;
     pNewScript->pQuestRewardedNPC = &QuestComplete_npc_nazgrel;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "npc_vindicator_sedai";
+    pNewScript->GetAI = &GetAI_npc_vindicator_sedai;
+    pNewScript->pProcessEventId = &ProcessEventId_sedai_vision;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "npc_krun";
+    pNewScript->GetAI = &GetAI_npc_krun;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "npc_laughing_skull";
+    pNewScript->GetAI = &GetAI_npc_laughing_skull;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "npc_maghar_escort";
+    pNewScript->GetAI = &GetAI_npc_maghar_escort;
     pNewScript->RegisterSelf();
 }

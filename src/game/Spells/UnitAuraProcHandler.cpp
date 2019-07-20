@@ -1037,6 +1037,21 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(ProcExecutionData& data)
                     }
                     return SPELL_AURA_PROC_OK;
                 }
+                // Soul Charge - Archimonde
+                case 32045: // Yellow
+                case 32051: // Green
+                case 32052: // Red
+                {
+                    switch (dummySpell->Id)
+                    {
+                        case 32045: triggered_spell_id = 32054; break;
+                        case 32051: triggered_spell_id = 32057; break;
+                        case 32052: triggered_spell_id = 32053; break;
+                    }
+
+                    AI()->SendAIEvent(AI_EVENT_CUSTOM_A, this, this, triggered_spell_id);
+                    return SPELL_AURA_PROC_CANT_TRIGGER; // Strangely, stacks and charges are removed on cast finish
+                }
                 // Mark of Malice
                 case 33493:
                 {
@@ -1541,6 +1556,20 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(ProcExecutionData& data)
                     // Remove only single aura from stack and remove holder if its last stack
                     RemoveAuraHolderFromStack(74396);
                     return SPELL_AURA_PROC_OK;
+                }
+                case 30554: // Wrath of the Titans - Karazhan
+                {
+                    switch (GetFirstSchoolInMask(GetSpellSchoolMask(procSpell)))
+                    {
+                        case SPELL_SCHOOL_NORMAL: return SPELL_AURA_PROC_FAILED;  // ignore
+                        case SPELL_SCHOOL_FIRE:   triggered_spell_id = 30607; break; // Flame of Khaz'goroth
+                        case SPELL_SCHOOL_NATURE: triggered_spell_id = 30606; break; // Bolt of Eonar
+                        case SPELL_SCHOOL_FROST:  triggered_spell_id = 30609; break; // Chill of Norgannon
+                        case SPELL_SCHOOL_SHADOW: triggered_spell_id = 30608; break; // Spite of Sargeras
+                        case SPELL_SCHOOL_ARCANE: triggered_spell_id = 30605; break; // Blast of Amanthul
+                        default: return SPELL_AURA_PROC_FAILED;
+                    }
+                    break;
                 }
             }
             break;
@@ -3275,6 +3304,24 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(ProcExecutionData& data
                     break;
                 // case 38363: break;                   // Gushing Wound
                 // case 39215: break;                   // Gushing Wound
+                case 39832:                             // Light of the Naaru - proc only hits demons near Black Temple entrance
+                    switch (pVictim->GetEntry())
+                    {
+                        case 21166:
+                        case 21768:
+                        case 22857:
+                        case 22858:
+                        case 22859:
+                        case 22860:
+                        case 22904:
+                        case 22988:
+                        case 23044:
+                        case 23152:
+                            break;
+                        default:
+                            return SPELL_AURA_PROC_FAILED;
+                    }
+                    break;
                 // case 40329: break;                   // Demo Shout Sensor
                 // case 40364: break;                   // Entangling Roots Sensor
                 // case 41054: break;                   // Copy Weapon
@@ -3303,6 +3350,14 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(ProcExecutionData& data
                 // case 46146: break:                   // [PH] Ahune  Spanky Hands
                 // case 45205: break;                   // Copy Offhand Weapon
                 // case 45343: break;                   // Dark Flame Aura
+                case 45396:                         // Blessed Weapon Coating
+                case 45398:                         // Righteous Weapon Coating
+                {
+                    uint32 zoneId = GetZoneId();
+                    if (zoneId != 4075 && zoneId != 4080 && zoneId != 4131)
+                        return SPELL_AURA_PROC_FAILED;
+                    break;
+                }
                 // case 47300: break;                   // Dark Flame Aura
                 case 45343:                          // Dark Flame Aura proc from scarolash
                 {
@@ -4132,7 +4187,7 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(ProcExecutionData& data
         // TODO: add neutral target handling, neutral targets should still be able to go through
         if (!(this == target && IsOnlySelfTargeting(triggerEntry)))
         {
-            if (IsPositiveSpellTargetMode(triggerEntry, this, target) != CanAssist(target))
+            if (IsPositiveSpellTargetMode(triggerEntry, this, target) != CanAssistSpell(target, triggerEntry))
                 return SPELL_AURA_PROC_FAILED;
         }
     }
@@ -4336,7 +4391,8 @@ SpellAuraProcResult Unit::HandleMendingAuraProc(ProcExecutionData& data)
                         continue;
 
                     int32 basePoints = aur->GetBasePoints();
-                    Aura* new_aur = CreateAura(spellProto, aur->GetEffIndex(), &basePoints, new_holder, target, caster);
+                    int32 damage = aur->GetModifier()->m_baseAmount;
+                    Aura* new_aur = CreateAura(spellProto, aur->GetEffIndex(), &damage, &basePoints, new_holder, target, caster);
                     new_holder->AddAura(new_aur, new_aur->GetEffIndex());
                 }
                 new_holder->SetAuraCharges(jumps, false);
@@ -4361,7 +4417,7 @@ SpellAuraProcResult Unit::HandleModCastingSpeedNotStackAuraProc(ProcExecutionDat
 {
     SpellEntry const* procSpell = data.procSpell;
     // Skip melee hits or instant cast spells
-    return !(procSpell == nullptr || GetSpellCastTime(procSpell) == 0) ? SPELL_AURA_PROC_OK : SPELL_AURA_PROC_FAILED;
+    return !(procSpell == nullptr || GetSpellCastTime(procSpell, this) == 0) ? SPELL_AURA_PROC_OK : SPELL_AURA_PROC_FAILED;
 }
 
 SpellAuraProcResult Unit::HandleReflectSpellsSchoolAuraProc(ProcExecutionData& data)
@@ -4621,10 +4677,15 @@ SpellAuraProcResult Unit::HandlePeriodicAuraProc(ProcExecutionData& data)
     switch (auraInfo->Id)
     {
         case 32065: // Fungal Decay - all three consume one stack on proc
-        case 35244: // Choking Vines
         case 36659: // Tail Sting
             if (triggeredByAura->GetHolder()->ModStackAmount(-1, nullptr)) // Remove aura on return true
                 RemoveSpellAuraHolder(triggeredByAura->GetHolder(), AURA_REMOVE_BY_DEFAULT);
+        case 35244: // Choking Vines
+            if (triggeredByAura->GetHolder()->GetStackAmount() == triggeredByAura->GetHolder()->GetSpellProto()->StackAmount)
+            {
+                RemoveSpellAuraHolder(triggeredByAura->GetHolder(), AURA_REMOVE_BY_DEFAULT);
+                CastSpell(nullptr, 35247, TRIGGERED_OLD_TRIGGERED); // constricting wound
+            }
             break;
     }
 

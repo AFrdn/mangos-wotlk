@@ -79,7 +79,7 @@ bool GOUse_go_mausoleum_trigger(Player* pPlayer, GameObject* pGo)
 enum
 {
     SAY_COMPLETE        = -1000356,
-    SPELL_DRINK         = 2639,                             // possibly not correct spell (but iconId is correct)
+    SD_SPELL_DRINK      = 2639,                             // possibly not correct spell (but iconId is correct)
     QUEST_590           = 590,
     FACTION_HOSTILE     = 168
 };
@@ -104,11 +104,11 @@ struct npc_calvin_montagueAI : public ScriptedAI
         m_playerGuid.Clear();
     }
 
-    void DamageTaken(Unit* pDoneBy, uint32& uiDamage, DamageEffectType /*damagetype*/) override
+    void DamageTaken(Unit* pDoneBy, uint32& damage, DamageEffectType /*damagetype*/, SpellEntry const* /*spellInfo*/) override
     {
-        if (uiDamage > m_creature->GetHealth() || ((m_creature->GetHealth() - uiDamage) * 100 / m_creature->GetMaxHealth() < 15))
+        if (damage > m_creature->GetHealth() || ((m_creature->GetHealth() - damage) * 100 / m_creature->GetMaxHealth() < 15))
         {
-            uiDamage = 0;
+            damage = std::min(damage, m_creature->GetHealth() - 1);
 
             m_creature->CombatStop(true);
             SetReactState(REACT_PASSIVE);
@@ -142,7 +142,7 @@ struct npc_calvin_montagueAI : public ScriptedAI
                     if (Player* pPlayer = m_creature->GetMap()->GetPlayer(m_playerGuid))
                         pPlayer->AreaExploredOrEventHappens(QUEST_590);
 
-                    m_creature->CastSpell(m_creature, SPELL_DRINK, TRIGGERED_OLD_TRIGGERED);
+                    m_creature->CastSpell(m_creature, SD_SPELL_DRINK, TRIGGERED_OLD_TRIGGERED);
                     ++m_uiPhase;
                     break;
                 case 3:

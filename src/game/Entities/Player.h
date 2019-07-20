@@ -1255,7 +1255,7 @@ class Player : public Unit
         Item* StoreItem(ItemPosCountVec const& dest, Item* pItem, bool update);
         Item* EquipNewItem(uint16 pos, uint32 item, bool update);
         Item* EquipItem(uint16 pos, Item* pItem, bool update);
-        void AutoUnequipOffhandIfNeed();
+        void AutoUnequipOffhandIfNeed(uint8 bag = NULL_BAG);
         bool StoreNewItemInBestSlots(uint32 titem_id, uint32 titem_amount);
         Item* StoreNewItemInInventorySlot(uint32 itemEntry, uint32 amount);
 
@@ -1472,7 +1472,7 @@ class Player : public Unit
         bool CanShareQuest(uint32 quest_id) const;
 
         void SendQuestCompleteEvent(uint32 quest_id) const;
-        void SendQuestReward(Quest const* pQuest, uint32 XP) const;
+        void SendQuestReward(Quest const* pQuest, uint32 XP, uint32 honor) const;
         void SendQuestFailed(uint32 quest_id, InventoryResult reason = EQUIP_ERR_OK) const;
         void SendQuestTimerFailed(uint32 quest_id) const;
         void SendCanTakeQuestResponse(uint32 msg) const;
@@ -1640,6 +1640,9 @@ class Player : public Unit
 
         void SendProficiency(ItemClass itemClass, uint32 itemSubclassMask) const;
         void SendInitialSpells() const;
+        void SendUnlearnSpells() const;
+        void SendSupercededSpell(uint32 oldSpell, uint32 newSpell) const;
+        void SendRemovedSpell(uint32 spellId) const;
         bool addSpell(uint32 spell_id, bool active, bool learning, bool dependent, bool disabled);
         void learnSpell(uint32 spell_id, bool dependent, bool talent = false);
         void removeSpell(uint32 spell_id, bool disabled = false, bool learn_low_rank = true, bool sendUpdate = true);
@@ -1691,6 +1694,8 @@ class Player : public Unit
 
         void AddSpellMod(Aura* aura, bool apply);
         template <class T> void ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue);
+        void SetSpellClass(uint8 playerClass);
+        SpellFamily GetSpellClass() const { return m_spellClassName; } // client function equivalent - says what player can cast
 
         void SetResurrectRequestData(Unit* caster, uint32 health, uint32 mana);
         void SetResurrectRequestDataToGhoul(Unit* caster);
@@ -1822,8 +1827,6 @@ class Player : public Unit
         float GetMeleeCritFromAgility() const;
         float GetDodgeFromAgility(float amount) const;
         float GetSpellCritFromIntellect() const;
-        float OCTRegenHPPerSpirit() const;
-        float OCTRegenMPPerSpirit() const;
         float GetRatingMultiplier(CombatRating cr) const;
         float GetRatingBonusValue(CombatRating cr) const;
         uint32 GetBaseSpellPowerBonus() const { return m_baseSpellPower; }
@@ -1938,6 +1941,7 @@ class Player : public Unit
         void UpdateSkillTrainedSpells(uint16 id, uint16 currVal);                                   // learns/unlearns spells dependent on a skill
         void UpdateSpellTrainedSkills(uint32 spellId, bool apply);                                  // learns/unlearns skills dependent on a spell
         void LearnDefaultSkills();
+        virtual uint32 GetSpellRank(SpellEntry const* spellInfo) override;
 
         WorldLocation& GetTeleportDest() { return m_teleport_dest; }
         bool IsBeingTeleported() const { return mSemaphoreTeleport_Near || mSemaphoreTeleport_Far; }
@@ -2036,7 +2040,7 @@ class Player : public Unit
         void ApplyEquipSpell(SpellEntry const* spellInfo, Item* item, bool apply, bool form_change = false);
         void UpdateEquipSpellsAtFormChange();
         void CastItemCombatSpell(Unit* Target, WeaponAttackType attType, bool spellProc = false);
-        void CastItemUseSpell(Item* item, SpellCastTargets const& targets, uint8 cast_count, uint32 glyphIndex);
+        void CastItemUseSpell(Item* item, SpellCastTargets& targets, uint8 cast_count, uint32 glyphIndex, uint32 spellId);
 
         void ApplyItemOnStoreSpell(Item* item, bool apply);
         void DestroyItemWithOnStoreSpell(Item* item, uint32 spellId);
@@ -2256,6 +2260,7 @@ class Player : public Unit
         void   SaveRecallPosition();
 
         void SetHomebindToLocation(WorldLocation const& loc, uint32 area_id);
+        void GetHomebindLocation(float &x, float &y, float &z) { x = m_homebindX; y = m_homebindY; z = m_homebindZ; }
         void RelocateToHomebind() { SetLocationMapId(m_homebindMapId); Relocate(m_homebindX, m_homebindY, m_homebindZ); }
         bool TeleportToHomebind(uint32 options = 0) { return TeleportTo(m_homebindMapId, m_homebindX, m_homebindY, m_homebindZ, GetOrientation(), options); }
 
@@ -2376,7 +2381,6 @@ class Player : public Unit
         bool HasTitle(CharTitlesEntry const* title) const { return HasTitle(title->bit_index); }
         void SetTitle(uint32 titleId, bool lost = false);
         void SetTitle(CharTitlesEntry const* title, bool lost = false);
-        void SaveTitles(); // optimization for arena rewards
 
         virtual UnitAI* AI() override { if (m_charmInfo) return m_charmInfo->GetAI(); return nullptr; }
         virtual CombatData* GetCombatData() override { if (m_charmInfo && m_charmInfo->GetCombatData()) return m_charmInfo->GetCombatData(); return m_combatData; }
@@ -2434,6 +2438,10 @@ class Player : public Unit
         }
 
         void UpdateEverything();
+
+        // Public Save system functions
+        void SaveItemToInventory(Item* item); // optimization for gift wrapping
+        void SaveTitles(); // optimization for arena rewards
     protected:
         /*********************************************************/
         /***               BATTLEGROUND SYSTEM                 ***/
@@ -2597,6 +2605,7 @@ class Player : public Unit
         uint32 m_enchantmentFlatMod[MAX_ATTACK]; // TODO: Stat system - incorporate generically, exposes a required hidden weapon stat that does not apply when unarmed
 
         AuraList m_spellMods[MAX_SPELLMOD];
+        SpellFamily m_spellClassName; // s_spellClassSet
         EnchantDurationList m_enchantDuration;
         ItemDurationList m_itemDuration;
 

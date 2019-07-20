@@ -31,23 +31,42 @@
 
 #include <set>
 
-#define CONTACT_DISTANCE            0.5f
-#define INTERACTION_DISTANCE        5.0f
-#define ATTACK_DISTANCE             5.0f
-#define MELEE_LEEWAY                8.0f / 3.0f // Melee attack and melee spell leeway when moving
-#define RANGED_LEEWAY               2.0f        // Ranged leeway when moving
-#define AOE_LEEWAY                  2.0f        // AOE leeway when moving
-#define INSPECT_DISTANCE            28.0f
-#define TRADE_DISTANCE              11.11f
-#define MAX_VISIBILITY_DISTANCE     333.0f      // max distance for visible object show, limited in 333 yards
-#define DEFAULT_VISIBILITY_DISTANCE 90.0f       // default visible distance, 90 yards on continents
-#define DEFAULT_VISIBILITY_INSTANCE 120.0f      // default visible distance in instances, 120 yards
-#define DEFAULT_VISIBILITY_BGARENAS 180.0f      // default visible distance in BG/Arenas, 180 yards
+#define CONTACT_DISTANCE                0.5f
+#define INTERACTION_DISTANCE            5.0f
+#define ATTACK_DISTANCE                 5.0f
+#define MELEE_LEEWAY                    8.0f / 3.0f // Melee attack and melee spell leeway when moving
+#define AOE_LEEWAY                      2.0f        // AOE leeway when moving
+#define INSPECT_DISTANCE                28.0f
+#define TRADE_DISTANCE                  11.11f
 
-#define DEFAULT_WORLD_OBJECT_SIZE   0.388999998569489f      // currently used (correctly?) for any non Unit world objects. This is actually the bounding_radius, like player/creature from creature_model_data
-#define DEFAULT_OBJECT_SCALE        1.0f                    // player/item scale as default, npc/go from database, pets from dbc
+#define MAX_VISIBILITY_DISTANCE         SIZE_OF_GRIDS               // max distance for visible object show, limited in 533 yards
+#define VISIBILITY_DISTANCE_GIGANTIC    400.0f
+#define VISIBILITY_DISTANCE_LARGE       200.0f
+#define VISIBILITY_DISTANCE_NORMAL      100.0f
+#define VISIBILITY_DISTANCE_SMALL       50.0f
+#define VISIBILITY_DISTANCE_TINY        25.0f
+#define DEFAULT_VISIBILITY_DISTANCE     VISIBILITY_DISTANCE_NORMAL  // default visible distance, 100 yards on continents
+#define DEFAULT_VISIBILITY_INSTANCE     170.0f                      // default visible distance in instances, 170 yards
+#define DEFAULT_VISIBILITY_BGARENAS     533.0f                      // default visible distance in BG/Arenas, 533 yards
 
-#define MAX_STEALTH_DETECT_RANGE    45.0f
+
+#define DEFAULT_WORLD_OBJECT_SIZE       0.388999998569489f      // currently used (correctly?) for any non Unit world objects. This is actually the bounding_radius, like player/creature from creature_model_data
+#define DEFAULT_OBJECT_SCALE            1.0f                    // player/item scale as default, npc/go from database, pets from dbc
+
+#define MAX_STEALTH_DETECT_RANGE        45.0f
+#define GRID_ACTIVATION_RANGE           45.0f
+
+enum class VisibilityDistanceType : uint32
+{
+    Normal = 0,
+    Tiny = 1,
+    Small = 2,
+    Large = 3,
+    Gigantic = 4,
+    Infinite = 5,
+
+    Max
+};
 
 enum TempSpawnType
 {
@@ -672,7 +691,7 @@ class WorldObject : public Object
          * @param distance2d        -           distance between the middle-points
          * @param absAngle          -           angle in which the spot is preferred
          */
-        void GetNearPoint(WorldObject const* searcher, float& x, float& y, float& z, float searcher_bounding_radius, float distance2d, float absAngle) const;
+        void GetNearPoint(WorldObject const* searcher, float& x, float& y, float& z, float searcher_bounding_radius, float distance2d, float absAngle, bool isInWater = false) const;
         /** Gives a "free" spot for a searcher on the distance (including bounding-radius calculation)
          * @param x, y, z           -           position for the found spot
          * @param bounding_radius   -           radius for the searcher
@@ -703,7 +722,7 @@ class WorldObject : public Object
 
         bool IsPositionValid() const;
         void UpdateGroundPositionZ(float x, float y, float& z) const;
-        void UpdateAllowedPositionZ(float x, float y, float& z, Map* atMap = nullptr) const;
+        virtual void UpdateAllowedPositionZ(float x, float y, float& z, Map* atMap = nullptr) const;
 
         void MovePositionToFirstCollision(WorldLocation &pos, float dist, float angle);
         void GetFirstCollisionPosition(WorldLocation &pos, float dist, float angle)
@@ -844,6 +863,13 @@ class WorldObject : public Object
         bool isActiveObject() const { return m_isActiveObject || m_viewPoint.hasViewers(); }
         void SetActiveObjectState(bool active);
 
+        // Visibility stuff
+        bool IsVisibilityOverridden() const { return m_visibilityDistanceOverride != 0.f; }
+        void SetVisibilityDistanceOverride(VisibilityDistanceType type);
+
+        float GetVisibilityDistance() const;
+        float GetVisibilityDistanceFor(WorldObject* obj) const;
+
         ViewPoint& GetViewPoint() { return m_viewPoint; }
 
         // ASSERT print helper
@@ -851,7 +877,7 @@ class WorldObject : public Object
 
         // Game Event Notification system
         virtual bool IsNotifyOnEventObject() { return m_isOnEventNotified; }
-        virtual void OnEventHappened(uint16 event_id, bool activate, bool resume) {}
+        virtual void OnEventHappened(uint16 /*event_id*/, bool /*activate*/, bool /*resume*/) {}
         void SetNotifyOnEventState(bool state);
 
         virtual void AddToWorld() override;
@@ -865,7 +891,7 @@ class WorldObject : public Object
         virtual void RemoveSpellCooldown(SpellEntry const& spellEntry, bool updateClient = true);
         void RemoveSpellCooldown(uint32 spellId, bool updateClient = true);
         virtual void RemoveSpellCategoryCooldown(uint32 category, bool updateClient = true);
-        virtual void RemoveAllCooldowns(bool sendOnly = false) { m_GCDCatMap.clear(); m_cooldownMap.clear(); m_lockoutMap.clear(); }
+        virtual void RemoveAllCooldowns(bool /*sendOnly*/ = false) { m_GCDCatMap.clear(); m_cooldownMap.clear(); m_lockoutMap.clear(); }
         bool IsSpellReady(SpellEntry const& spellEntry, ItemPrototype const* itemProto = nullptr) const;
         bool IsSpellReady(uint32 spellId, ItemPrototype const* itemProto = nullptr) const;
         virtual void LockOutSpells(SpellSchoolMask schoolMask, uint32 duration);
@@ -873,8 +899,8 @@ class WorldObject : public Object
 
         virtual void InspectingLoot() {}
 
-        virtual bool CanAttackSpell(Unit const* target, SpellEntry const* spellInfo = nullptr, bool isAOE = false) const { return true; }
-        virtual bool CanAssistSpell(Unit const* target, SpellEntry const* spellInfo = nullptr) const { return true; }
+        virtual bool CanAttackSpell(Unit const* /*target*/, SpellEntry const* /*spellInfo*/ = nullptr, bool /*isAOE*/ = false) const { return true; }
+        virtual bool CanAssistSpell(Unit const* /*target*/, SpellEntry const* /*spellInfo*/ = nullptr) const { return true; }
 
     protected:
         explicit WorldObject();
@@ -899,6 +925,8 @@ class WorldObject : public Object
         TransportInfo* m_transportInfo;
 
         bool m_isOnEventNotified;
+
+        float m_visibilityDistanceOverride;
 
     private:
         Map* m_currMap;                                     // current object's Map location

@@ -111,7 +111,7 @@ struct boss_grand_warlock_nethekurseAI : public ScriptedAI
         m_uiCleaveTimer = 5000;
     }
 
-    void DoYellForPeonAggro(Unit* pWho)
+    void DoYellForPeonAggro(Unit* /*pWho*/)
     {
         switch (urand(0, 3))
         {
@@ -206,7 +206,7 @@ struct boss_grand_warlock_nethekurseAI : public ScriptedAI
         ScriptedAI::MoveInLineOfSight(pWho);
     }
 
-    void Aggro(Unit* pWho) override
+    void Aggro(Unit* /*pWho*/) override
     {
         m_bIsIntroEvent = false;
         m_bIsMainEvent = true;
@@ -288,7 +288,7 @@ struct boss_grand_warlock_nethekurseAI : public ScriptedAI
 
             if (m_uiDeathCoilTimer < uiDiff)
             {
-                if (Unit* pTarget = m_creature->SelectAttackingTarget(ATTACKING_TARGET_TOPAGGRO, 0, nullptr))
+                if (Unit* pTarget = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, nullptr, SELECT_FLAG_PLAYER))
                     DoCastSpellIfCan(pTarget, SPELL_DEATH_COIL);
                 m_uiDeathCoilTimer = urand(15000, 20000);
             }

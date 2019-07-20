@@ -383,7 +383,7 @@ struct boss_saraAI : public Scripted_NoMovementAI, private DialogueHelper
         DoScriptText(urand(0, 1) ? SAY_SARA_SLAY_1 : SAY_SARA_SLAY_2, m_creature);
     }
 
-    void DamageTaken(Unit* /*pDealer*/, uint32& uiDamage, DamageEffectType /*damagetype*/) override
+    void DamageTaken(Unit* /*pDealer*/, uint32& uiDamage, DamageEffectType /*damagetype*/, SpellEntry const* spellInfo) override
     {
         if (uiDamage >= m_creature->GetHealth())
         {
@@ -1035,6 +1035,7 @@ struct npc_brain_yogg_saronAI : public Scripted_NoMovementAI, private DialogueHe
         {
             case NPC_LAUGHING_SKULL:
                 pSummoned->CastSpell(pSummoned, SPELL_LUNATIC_GAZE_SKULL, TRIGGERED_NONE);
+                pSummoned->SetCanEnterCombat(false); // TODO: verify if necessary with correct flags
                 break;
             case NPC_SUIT_OF_ARMOR:
                 pSummoned->CastSpell(pSummoned, SPELL_NONDESCRIPT_ARMOR, TRIGGERED_OLD_TRIGGERED);
@@ -1332,7 +1333,7 @@ struct npc_immortal_guardianAI : public ScriptedAI
         m_bWeakened = false;
     }
 
-    void DamageTaken(Unit* pDealer, uint32& uiDamage, DamageEffectType /*damagetype*/) override
+    void DamageTaken(Unit* pDealer, uint32& uiDamage, DamageEffectType /*damagetype*/, SpellEntry const* spellInfo) override
     {
         if (pDealer->GetEntry() == NPC_THORIM_HELPER)
             return;
@@ -1585,26 +1586,6 @@ bool NpcSpellClick_npc_descent_madness(Player* pPlayer, Creature* pClickedCreatu
 }
 
 /*######
-## npc_laughing_skull
-######*/
-
-// TODO Remove this 'script' when combat can be proper prevented from core-side
-struct npc_laughing_skullAI : public Scripted_NoMovementAI
-{
-    npc_laughing_skullAI(Creature* pCreature) : Scripted_NoMovementAI(pCreature) { Reset(); }
-
-    void Reset() override { }
-    void AttackStart(Unit* /*pWho*/) override { }
-    void MoveInLineOfSight(Unit* /*pWho*/) override { }
-    void UpdateAI(const uint32 /*uiDiff*/) override { }
-};
-
-UnitAI* GetAI_npc_laughing_skull(Creature* pCreature)
-{
-    return new npc_laughing_skullAI(pCreature);
-}
-
-/*######
 ## npc_keeper_mimiron
 ######*/
 
@@ -1720,11 +1701,6 @@ void AddSC_boss_yogg_saron()
     pNewScript->Name = "npc_descent_madness";
     pNewScript->GetAI = &GetAI_npc_descent_madness;
     pNewScript->pNpcSpellClick = &NpcSpellClick_npc_descent_madness;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
-    pNewScript->Name = "npc_laughing_skull";
-    pNewScript->GetAI = &GetAI_npc_laughing_skull;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;

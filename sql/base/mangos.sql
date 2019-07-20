@@ -24,7 +24,7 @@ CREATE TABLE `db_version` (
   `version` varchar(120) DEFAULT NULL,
   `creature_ai_version` varchar(120) DEFAULT NULL,
   `cache_id` int(10) DEFAULT '0',
-  `required_13992_01_mangos_weapon_skills_fix_wotlk` bit(1) DEFAULT NULL
+  `required_13998_01_mangos_visibility` bit(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Used DB version notes';
 
 --
@@ -1016,6 +1016,26 @@ LOCK TABLES `creature_conditional_spawn` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `creature_spawn_entry`
+--
+
+DROP TABLE IF EXISTS `creature_spawn_entry`;
+CREATE TABLE `creature_spawn_entry` (
+  `guid` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'Global Unique Identifier',
+  `entry` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`guid`,`entry`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Creature System (Spawn Entry)';
+
+--
+-- Dumping data for table `creature_spawn_entry`
+--
+
+LOCK TABLES `creature_spawn_entry` WRITE;
+/*!40000 ALTER TABLE `creature_spawn_entry` DISABLE KEYS */;
+/*!40000 ALTER TABLE `creature_spawn_entry` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `creature_equip_template`
 --
 
@@ -1394,6 +1414,7 @@ CREATE TABLE `creature_template` (
   `EquipmentTemplateId` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `VehicleTemplateId` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `GossipMenuId` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `VisibilityDistanceType` TINYINT NOT NULL DEFAULT '0',
   `AIName` char(64) NOT NULL DEFAULT '',
   `ScriptName` char(64) NOT NULL DEFAULT '',
   PRIMARY KEY (`entry`)
@@ -1406,7 +1427,7 @@ CREATE TABLE `creature_template` (
 LOCK TABLES `creature_template` WRITE;
 /*!40000 ALTER TABLE `creature_template` DISABLE KEYS */;
 INSERT INTO `creature_template` VALUES
-(1,'Waypoint (Only GM can see it)','Visual',NULL,1,1,0,0,0,10045,0,0,0,35,1,0,8,7,1,0,0,4096,0,130,5242886,0.91,1.14286,20,0,0,0,0,8,0,-1,1,1,1,1,1,1,64,64,0,0,2,3,1,2,5,10,100,2000,2200,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','');
+(1,'Waypoint (Only GM can see it)','Visual',NULL,1,1,0,0,0,10045,0,0,0,35,1,0,8,7,1,0,0,4096,0,130,5242886,0.91,1.14286,20,0,0,0,0,8,0,-1,1,1,1,1,1,1,64,64,0,0,2,3,1,2,5,10,100,2000,2200,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','');
 /*!40000 ALTER TABLE `creature_template` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1462,6 +1483,15 @@ LOCK TABLES `creature_template_spells` WRITE;
 /*!40000 ALTER TABLE `creature_template_spells` DISABLE KEYS */;
 /*!40000 ALTER TABLE `creature_template_spells` ENABLE KEYS */;
 UNLOCK TABLES;
+
+DROP TABLE IF EXISTS creature_cooldowns;
+CREATE TABLE creature_cooldowns (
+  `Entry` mediumint(8) unsigned NOT NULL,
+  `SpellId` int(11) unsigned NOT NULL,
+  `CooldownMin` int(10) unsigned NOT NULL,
+  `CooldownMax` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`entry`, `SpellId`)
+);
 
 --
 -- Table structure for table `custom_texts`
@@ -4451,8 +4481,8 @@ INSERT INTO `mangos_string` VALUES
 (529,'   Waypoint',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (530,'   Animal random',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (531,'   Confused',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(532,'   Targeted to player %s (lowguid %u) distance %f angle %f',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
-(533,'   Targeted to creature %s (lowguid %u) distance %f angle %f',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(532,'   Targeted to player %s (lowguid %u) distance %f angle %f mode %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+(533,'   Targeted to creature %s (lowguid %u) distance %f angle %f mode %s',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (534,'   Targeted to <NULL>',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (535,'   Home movement to (X:%f Y:%f Z:%f)',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 (536,'   Home movement used for player?!?',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -15361,7 +15391,9 @@ CREATE TABLE `quest_template` (
   `DetailsEmoteDelay3` int(11) unsigned NOT NULL DEFAULT '0',
   `DetailsEmoteDelay4` int(11) unsigned NOT NULL DEFAULT '0',
   `IncompleteEmote` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `IncompleteEmoteDelay` INT(11) UNSIGNED NOT NULL DEFAULT '0',
   `CompleteEmote` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `CompleteEmoteDelay` INT(11) UNSIGNED NOT NULL DEFAULT '0',
   `OfferRewardEmote1` smallint(5) unsigned NOT NULL DEFAULT '0',
   `OfferRewardEmote2` smallint(5) unsigned NOT NULL DEFAULT '0',
   `OfferRewardEmote3` smallint(5) unsigned NOT NULL DEFAULT '0',
