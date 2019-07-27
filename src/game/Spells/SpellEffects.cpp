@@ -1716,7 +1716,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                 }
                 case 28697:                                 // Forgiveness
                 {
-                    m_caster->DealDamage(unitTarget, unitTarget->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                    unitTarget->CastSpell(nullptr, 3617, TRIGGERED_OLD_TRIGGERED); // guessed suicide spell
                     return;
                 }
                 case 29126:                                 // Cleansing Flames (Darnassus)
@@ -1957,8 +1957,8 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                 }
                 case 34063:                                 // Soul Mirror - Kill creature on spell and spawn mob
                 {
-                    m_caster->SummonCreature(19480, unitTarget->GetPositionX(), unitTarget->GetPositionY(), unitTarget->GetPositionZ(), unitTarget->GetOrientation(), TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, 30000);
-                    unitTarget->DealDamage(unitTarget, unitTarget->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                    unitTarget->CastSpell(nullptr, 34064, TRIGGERED_OLD_TRIGGERED);
+                    unitTarget->CastSpell(nullptr, 3617, TRIGGERED_OLD_TRIGGERED);
                     return;
                 }
                 case 34094:                                 // Power of Arrazius
@@ -4077,7 +4077,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                 case 30610:                                 // Wrath of the Titans Stacker
                 {
                     uint32 count = m_caster->GetAuraCount(30554);
-                    for (uint32 i = count; count < 5; ++i)
+                    for (uint32 i = count; i < 5; ++i)
                         m_caster->CastSpell(nullptr, 30554, TRIGGERED_OLD_TRIGGERED);
                     return;
                 }
@@ -9381,6 +9381,20 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                         return;
 
                     unitTarget->CastSpell(nullptr, urand(0, 1) ? 37429 : 37430, TRIGGERED_OLD_TRIGGERED);
+                    return;
+                }
+                case 37641:                                 // Whirlwind
+                {
+                    UnitAI* ai = m_caster->AI();
+                    if (!ai || m_caster->GetTypeId() != TYPEID_UNIT)
+                        return;
+
+                    if (urand(0, 2) == 0 && m_caster->HasAura(37640))
+                    {
+                        ai->DoResetThreat();
+                        if (Unit* target = static_cast<Creature*>(m_caster)->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, nullptr, SELECT_FLAG_PLAYER))
+                            m_caster->AddThreat(target, 100000.f);
+                    }
                     return;
                 }
                 case 37751:                                 // Submerged

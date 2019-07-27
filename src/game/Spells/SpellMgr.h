@@ -530,6 +530,19 @@ inline bool IsSpellRemovedOnEvade(SpellEntry const* spellInfo)
         case 39918:         // Soulgrinder Ritual Visual ( in progress)
         case 39920:         // Soulgrinder Ritual Visual ( beam)
         case 41634:         // Invisibility and Stealth Detection
+        case 44537:         // Fel Lightning
+        case 44604:         // Enchantment of Spell Haste
+        case 44855:         // Out of Phase
+        case 45033:         // Abyssal Transformation
+        case 45822:         // Iceblood Warmaster
+        case 45823:         // Tower Point Warmaster
+        case 45824:         // West Frostwolf Warmaster
+        case 45826:         // East Frostwolf Warmaster
+        case 45828:         // Dun Baldar North Marshal
+        case 45829:         // Dun Baldar South Marshal
+        case 45830:         // Stonehearth Marshal
+        case 45831:         // Icewing Marshal
+        case 46048:         // Fel Lightning
             return false;
         default:
             return true;
@@ -975,10 +988,6 @@ inline bool IsNeutralEffectTargetPositive(uint32 etarget, const WorldObject* cas
 inline bool IsPositiveEffectTargetMode(const SpellEntry* entry, SpellEffectIndex effIndex, const WorldObject* caster = nullptr, const WorldObject* target = nullptr, bool recursive = false)
 {
     if (!entry)
-        return false;
-
-    // Forces positive targets to be negative TODO: Find out if this is true for neutral targets
-    if (entry->HasAttribute(SPELL_ATTR_AURA_IS_DEBUFF))
         return false;
 
     // Triggered spells case: prefer child spell via IsPositiveSpell()-like scan for triggered spell
@@ -2164,12 +2173,19 @@ class SpellMgr
                 return false;
 
             // Early instance of same spell check
-            if (entry1 == entry2)
+            if (entry1 == entry2 || entry1->Id == entry2->Id)
                 return true;
 
-            // One spell is a rank of another spell (same spell chain)
-            if (GetFirstSpellInChain(entry1->Id) == GetFirstSpellInChain(entry2->Id))
+            // One spell is a rank of another spell
+            if (IsSpellAnotherRankOfSpell(entry1->Id, entry2->Id))
                 return true;
+
+            // Experimental: Try to detect spinoffs of specific family spells (e.g. polymorph flavors)
+            if (entry1->SpellFamilyName != SPELLFAMILY_GENERIC && entry2->SpellFamilyName != SPELLFAMILY_GENERIC)
+            {
+                if (!entry1->SpellFamilyFlags.Empty() && !entry2->SpellFamilyFlags.Empty())
+                    return entry1->IsFitToFamily(SpellFamily(entry2->SpellFamilyName), entry2->SpellFamilyFlags);
+            }
 
             return false;
         }

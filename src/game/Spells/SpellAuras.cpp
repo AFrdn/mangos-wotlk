@@ -1714,8 +1714,17 @@ void Aura::TriggerSpell()
 //                    case 40879: break;
 //                    // Aura of Desire
 //                    case 41350: break;
-//                    // Dementia
-//                    case 41404: break;
+                    case 41404:                             // Dementia
+                        switch (urand(0, 1))
+                        {
+                            case 0:
+                                trigger_spell_id = 41406;
+                                break;
+                            case 1:
+                                trigger_spell_id = 41409;
+                                break;
+                        }
+                        break;
 //                    // Chaos Form
 //                    case 41629: break;
                     case 42177:                             // Alert Drums
@@ -3485,6 +3494,14 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                         target->RemoveAurasDueToSpell(24662);
                     return;
                 }
+                case 28819:                             // Submerge Visual
+                {
+                    if (apply)
+                        target->SetStandState(UNIT_STAND_STATE_CUSTOM);
+                    else
+                        target->SetStandState(UNIT_STAND_STATE_STAND);
+                    return;
+                }
                 case 29266:                                 // Permanent Feign Death
                 case 31261:                                 // Permanent Feign Death (Root)
                 case 37493:                                 // Feign Death
@@ -5227,9 +5244,15 @@ void Aura::HandleAuraModStun(bool apply, bool Real)
         if (GetSpellProto()->AuraInterruptFlags & AURA_INTERRUPT_FLAG_DAMAGE)
             target->getHostileRefManager().HandleSuppressed(apply);
 
-        // Summon the Naj'entus Spine GameObject on target if spell is Impaling Spine
-        if (GetId() == 39837)
-            target->CastSpell(nullptr, 39929, TRIGGERED_OLD_TRIGGERED);
+        switch (GetId())
+        {
+            case 32890: // Knockout - OHF
+                target->SetStandState(UNIT_STAND_STATE_DEAD);
+                break;
+            case 39837: // Summon the Naj'entus Spine GameObject on target if spell is Impaling Spine
+                target->CastSpell(nullptr, 39929, TRIGGERED_OLD_TRIGGERED);
+                break;
+        }
     }
     else
     {
@@ -5601,10 +5624,9 @@ void Aura::HandleModThreat(bool apply, bool Real)
     if (level_diff > 0)
         m_modifier.m_amount += multiplier * level_diff;
 
-    if (target->GetTypeId() == TYPEID_PLAYER)
-        for (int8 x = 0; x < MAX_SPELL_SCHOOL; ++x)
-            if (m_modifier.m_miscvalue & int32(1 << x))
-                ApplyPercentModFloatVar(target->m_threatModifier[x], float(m_modifier.m_amount), apply);
+    for (int8 x = 0; x < MAX_SPELL_SCHOOL; ++x)
+        if (m_modifier.m_miscvalue & int32(1 << x))
+            ApplyPercentModFloatVar(target->m_threatModifier[x], float(m_modifier.m_amount), apply);
 }
 
 void Aura::HandleAuraModTotalThreat(bool apply, bool Real)
@@ -5777,6 +5799,7 @@ void Aura::HandleAuraModDecreaseSpeed(bool apply, bool Real)
     }
 
     target->UpdateSpeed(MOVE_RUN, true);
+    target->UpdateSpeed(MOVE_RUN_BACK, true);
     target->UpdateSpeed(MOVE_SWIM, true);
     target->UpdateSpeed(MOVE_FLIGHT, true);
 }
@@ -6087,6 +6110,9 @@ void Aura::HandlePeriodicTriggerSpell(bool apply, bool /*Real*/)
                         creature->AI()->SendAIEvent(AI_EVENT_CUSTOM_A, creature, creature);
                 return;
             case 37640:                                     // Leotheras Whirlwind
+                if (UnitAI* ai = target->AI())
+                    ai->DoResetThreat();
+                return;
             case 39575:                                     // Charge Frenzy
                 if (Unit* pCaster = GetCaster())
                     pCaster->FixateTarget(nullptr);
@@ -7100,9 +7126,7 @@ void Aura::HandleAuraModIncreaseMaxHealth(bool apply, bool /*Real*/)
 void Aura::HandleAuraModIncreaseEnergy(bool apply, bool Real)
 {
     Unit* target = GetTarget();
-    Powers powerType = target->GetPowerType();
-    if (int32(powerType) != m_modifier.m_miscvalue)
-        return;
+    Powers powerType = Powers(m_modifier.m_miscvalue);
 
     UnitMods unitMod = UnitMods(UNIT_MOD_POWER_START + powerType);
 
@@ -7124,13 +7148,12 @@ void Aura::HandleAuraModIncreaseEnergy(bool apply, bool Real)
 
 void Aura::HandleAuraModIncreaseEnergyPercent(bool apply, bool /*Real*/)
 {
-    Powers powerType = GetTarget()->GetPowerType();
-    if (int32(powerType) != m_modifier.m_miscvalue)
-        return;
+    Unit* target = GetTarget();
+    Powers powerType = Powers(m_modifier.m_miscvalue);
 
     UnitMods unitMod = UnitMods(UNIT_MOD_POWER_START + powerType);
 
-    GetTarget()->HandleStatModifier(unitMod, TOTAL_PCT, float(m_modifier.m_amount), apply);
+    target->HandleStatModifier(unitMod, TOTAL_PCT, float(m_modifier.m_amount), apply);
 }
 
 void Aura::HandleAuraModIncreaseHealthPercent(bool apply, bool /*Real*/)
@@ -8111,7 +8134,7 @@ void Aura::HandleSpiritOfRedemption(bool apply, bool Real)
     }
     // die at aura end
     else
-        target->DealDamage(target, target->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, GetSpellProto(), false);
+        target->CastSpell(nullptr, 27965, TRIGGERED_OLD_TRIGGERED); // Suicide
 }
 
 void Aura::HandleSchoolAbsorb(bool apply, bool Real)

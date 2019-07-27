@@ -1745,7 +1745,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, bool targ
             float dest_x, dest_y, dest_z;
             target->GetNearPoint(nullptr, dest_x, dest_y, dest_z, target->GetObjectBoundingRadius(), radius, angle, target->IsInWater());
             if (m_spellInfo->Id == 41289)
-                dest_z = 342.9485; // confirmed with sniffs
+                dest_z = 342.9485f; // confirmed with sniffs
             m_targets.setDestination(dest_x, dest_y, dest_z);
             break;
         }
@@ -5178,7 +5178,7 @@ SpellCastResult Spell::CheckCast(bool strict)
     if (!m_caster->isAlive() && m_caster->GetTypeId() == TYPEID_PLAYER && !m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_DEAD) && !m_spellInfo->HasAttribute(SPELL_ATTR_PASSIVE))
         return SPELL_FAILED_CASTER_DEAD;
 
-    if (!m_caster->IsStandState() && m_caster->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) && !m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_SITTING))
+    if (!m_IsTriggeredSpell && !m_caster->IsStandState() && m_caster->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) && !m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_SITTING))
         return SPELL_FAILED_NOT_STANDING;
 
     // check global cooldown
