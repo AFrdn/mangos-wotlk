@@ -28,7 +28,7 @@ npc_creditmarker_visit_with_ancestors
 npc_rethhedron
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 
 /*######
@@ -302,9 +302,7 @@ struct npc_nagrand_captiveAI : public npc_escortAI
         if (pSummoned->IsTotem())
             return;
         
-        pSummoned->AddThreat(m_creature);
-        pSummoned->SetInCombatWith(m_creature);
-        m_creature->SetInCombatWith(pSummoned);
+        pSummoned->AI()->AttackStart(m_creature);
     }
 
     void JustRespawned() override

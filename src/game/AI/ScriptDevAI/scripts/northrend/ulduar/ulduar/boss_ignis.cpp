@@ -21,8 +21,9 @@ SDComment:
 SDCategory: Ulduar
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "ulduar.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {

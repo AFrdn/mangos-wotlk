@@ -2,7 +2,7 @@
 * This program is free software licensed under GPL version 2
 * Please see the included DOCS/LICENSE.TXT for more information */
 
-#include "include/precompiled.h"
+#include "include/sc_common.h"
 #include "Policies/Singleton.h"
 #include "Config/Config.h"
 #include "Database/DatabaseEnv.h"
@@ -15,6 +15,7 @@
 #ifdef BUILD_SCRIPTDEV
 #include "system/ScriptLoader.h"
 #endif
+#include "Spells/SpellAuras.h"
 
 INSTANTIATE_SINGLETON_1(ScriptDevAIMgr);
 

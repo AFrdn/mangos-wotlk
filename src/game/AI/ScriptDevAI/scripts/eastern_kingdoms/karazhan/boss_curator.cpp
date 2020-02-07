@@ -28,7 +28,7 @@ Patches
 Removed sometime prior to 2.1.
 */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "karazhan.h"
 #include "Spells/Spell.h"
 #include "AI/ScriptDevAI/base/TimerAI.h"
@@ -108,7 +108,6 @@ struct boss_curatorAI : public ScriptedAI, public CombatActions
 
         m_creature->ApplySpellImmune(nullptr, IMMUNITY_EFFECT, SPELL_EFFECT_POWER_DRAIN, true);
         m_creature->ApplySpellImmune(nullptr, IMMUNITY_EFFECT, SPELL_EFFECT_POWER_BURN, true);
-        m_creature->ApplySpellImmune(nullptr, IMMUNITY_DISPEL, DISPEL_POISON, true);
         m_creature->ApplySpellImmune(nullptr, IMMUNITY_DAMAGE, SPELL_SCHOOL_MASK_ARCANE, true);
 
         m_phase = CURATOR_PHASE_1;

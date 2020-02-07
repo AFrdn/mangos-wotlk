@@ -21,7 +21,7 @@ SDComment: Transition to final phase needs more work.
 SDCategory: Coilfang Resevoir, Serpent Shrine Cavern
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "serpent_shrine.h"
 #include "Entities/TemporarySpawn.h"
 
@@ -235,8 +235,6 @@ struct boss_leotheras_the_blindAI : public ScriptedAI
                         m_creature->SetStandState(UNIT_STAND_STATE_STAND);
                         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
 
-                        m_creature->SetTurningOff(false); // clears target
-
                         SetCombatMovement(true);
 
                         m_attackDistance = 0.f;
@@ -276,11 +274,11 @@ struct boss_leotheras_the_blindAI : public ScriptedAI
             {
                 if (m_uiSwitchTimer <= uiDiff)
                 {
-                    if (DoCastSpellIfCan(m_creature, SPELL_METAMORPHOSIS) == CAST_OK)
+                    if (DoCastSpellIfCan(nullptr, SPELL_METAMORPHOSIS) == CAST_OK) // TODO: make this stuff happen on cast end
                     {
                         m_creature->RemoveAurasDueToSpell(SPELL_WHIRLWIND); // whirlwind is removed on entering demon form
                         DoScriptText(SAY_SWITCH_TO_DEMON, m_creature);
-
+                        SetEquipmentSlots(false, 0, 0, 0); // remove weapons
                         m_attackDistance = 35.f;
                         m_creature->GetMotionMaster()->MoveChase(m_creature->getVictim(), m_attackDistance, m_attackAngle, m_moveFurther);
 
@@ -331,6 +329,7 @@ struct boss_leotheras_the_blindAI : public ScriptedAI
 
                 // switch to nightelf form
                 m_creature->RemoveAurasDueToSpell(SPELL_METAMORPHOSIS);
+                SetEquipmentSlots(true);
 
                 m_attackDistance = 0.f;
                 m_creature->GetMotionMaster()->MoveChase(m_creature->getVictim(), m_attackDistance, m_attackAngle, m_moveFurther);

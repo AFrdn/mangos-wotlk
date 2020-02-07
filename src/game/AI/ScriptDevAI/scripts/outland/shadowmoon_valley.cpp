@@ -36,7 +36,7 @@ npc_domesticated_felboar
 npc_veneratus_spawn_node
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "AI/ScriptDevAI/base/pet_ai.h"
 #include "Entities/TemporarySpawn.h"
@@ -872,6 +872,7 @@ struct mob_torlothAI : public ScriptedAI
             case 5:
                 if (Player* pTarget = m_creature->GetMap()->GetPlayer(m_playerGuid))
                 {
+                    // TODO: review this
                     m_creature->AddThreat(pTarget);
                     m_creature->SetFacingToObject(pTarget);
                     m_creature->HandleEmote(EMOTE_ONESHOT_POINT);
@@ -1601,10 +1602,8 @@ struct npc_shadowlord_deathwailAI : public ScriptedAI
             for (auto& lOtherChanneler : lOtherChannelers)
                 if (lOtherChanneler->isAlive())
                 {
-                    lOtherChanneler->SetInCombatWith(attacker);
-                    attacker->SetInCombatWith(lOtherChanneler);
+                    lOtherChanneler->AI()->AttackStart(attacker);
                     lOtherChanneler->SetActiveObjectState(true);
-                    lOtherChanneler->AddThreat(attacker);
 
                     // agro on party members
                     if (Player* player = m_creature->GetMap()->GetPlayer(attacker->GetObjectGuid()))
@@ -1613,11 +1612,7 @@ struct npc_shadowlord_deathwailAI : public ScriptedAI
                             {
                                 Player* member = ref->getSource();
                                 if (member && member->isAlive() && m_cHOFVisualTrigger && m_cHOFVisualTrigger->IsWithinDistInMap(member, MAX_PLAYER_DISTANCE))
-                                {
-                                    lOtherChanneler->SetInCombatWith(member);
-                                    member->SetInCombatWith(lOtherChanneler);
-                                    lOtherChanneler->AddThreat(member);
-                                }
+                                    lOtherChanneler->AI()->AttackStart(member);
                             }
 
                     m_lSoulstealers.push_back(lOtherChanneler);
@@ -1823,6 +1818,7 @@ struct mob_shadowmoon_soulstealerAI : public ScriptedAI
 
     void JustRespawned() override
     {
+        m_creature->GetCombatManager().SetLeashingDisable(false);
         m_creature->SetActiveObjectState(false);
         m_creature->AI()->SetReactState(REACT_DEFENSIVE);
 
@@ -1831,6 +1827,7 @@ struct mob_shadowmoon_soulstealerAI : public ScriptedAI
 
     void EnterEvadeMode() override
     {
+        m_creature->GetCombatManager().SetLeashingDisable(false);
         m_creature->AI()->SetReactState(REACT_DEFENSIVE);
         Reset();
     }
@@ -1853,6 +1850,7 @@ struct mob_shadowmoon_soulstealerAI : public ScriptedAI
                 }
                 if (!exitCombat && DeathwailAI->SoulstealerEnteredCombat(m_creature, who))
                 {
+                    m_creature->GetCombatManager().SetLeashingDisable(true);
                     m_creature->AI()->SetReactState(REACT_PASSIVE);
                 }
                 else
@@ -4971,8 +4969,6 @@ struct npc_bt_battle_sensor : public ScriptedAI
             nearestLightsworn = (distLightsworn < distMagister) ? nearestLightsworn : nearestMagister;
         }
 
-        attacker->SetInCombatWith(nearestLightsworn);
-        attacker->AddThreat(nearestLightsworn);
         attacker->AI()->AttackStart(nearestLightsworn);
     }
 

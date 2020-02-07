@@ -180,7 +180,7 @@ enum Target
 
     TARGET_T_HOSTILE_RANDOM_MANA            = 16,           // Random target with mana
     TARGET_T_NEAREST_AOE_TARGET             = 17,           // Nearest target for aoe
-    TARGET_T_HOSTILE_FARTHEST_AWAY          = 18,       // Farthest away target, excluding melee range
+    TARGET_T_HOSTILE_FARTHEST_AWAY          = 18,           // Farthest away target, excluding melee range
 };
 
 enum EventFlags : uint32
@@ -205,15 +205,6 @@ enum SpawnedEventMode
     SPAWNED_EVENT_ALWAY = 0,
     SPAWNED_EVENT_MAP   = 1,
     SPAWNED_EVENT_ZONE  = 2
-};
-
-enum RangeModeType : uint32 // maybe can be substituted for class checks
-{
-    TYPE_NONE           = 0,
-    TYPE_FULL_CASTER    = 1,
-    TYPE_PROXIMITY      = 2,
-    TYPE_NO_MELEE_MODE  = 3,
-    TYPE_MAX,
 };
 
 enum WalkSetting : uint32
@@ -851,11 +842,17 @@ class CreatureEventAI : public CreatureAI
 
         void JustStoppedMovementOfTarget(SpellEntry const* spell, Unit* victim) override;
         void OnSpellInterrupt(SpellEntry const* spellInfo) override;
+        void OnSpellCooldownAdded(SpellEntry const* spellInfo) override;
 
         void DistancingStarted() override;
         void DistancingEnded() override;
 
         MovementGeneratorType GetDefaultMovement() { return m_defaultMovement; }
+
+        bool IsRangedUnit() override { return m_currentRangedMode; }
+        SpellSchoolMask GetMainAttackSchoolMask() const override { return m_currentRangedMode ? m_mainAttackMask : CreatureAI::GetMainAttackSchoolMask(); }
+
+        virtual CanCastResult DoCastSpellIfCan(Unit* target, uint32 spellId, uint32 castFlags = 0) override;
     protected:
         std::string GetAIName() override { return "EventAI"; }
         // Event rules specifiers
@@ -894,6 +891,7 @@ class CreatureEventAI : public CreatureAI
         uint32 m_mainSpellId;
         uint32 m_mainSpellCost;
         float m_mainSpellMinRange;
+        SpellSchoolMask m_mainAttackMask;
 
         MovementGeneratorType m_defaultMovement; // TODO: Extend to all of AI
 };

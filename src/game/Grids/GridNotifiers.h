@@ -113,15 +113,16 @@ namespace MaNGOS
 
     struct ObjectUpdater
     {
-        explicit ObjectUpdater(WorldObjectUnSet& otus) : m_objectToUpdateSet(otus) {}
+        ObjectUpdater(WorldObjectUnSet& otus, const uint32& diff) : m_objectToUpdateSet(otus), m_timeDiff(diff) {}
         template<class T> void Visit(GridRefManager<T>& m);
         void Visit(PlayerMapType&) {}
         void Visit(CorpseMapType&) {}
         void Visit(CameraMapType&) {}
         void Visit(CreatureMapType&);
 
-      private:
-      WorldObjectUnSet& m_objectToUpdateSet;
+        private:
+            WorldObjectUnSet& m_objectToUpdateSet;
+            uint32 m_timeDiff;
     };
 
     struct PlayerVisitObjectsNotifier
@@ -979,7 +980,7 @@ namespace MaNGOS
             Unit const& GetFocusObject() const { return *i_obj; }
             bool operator()(Unit* u)
             {
-                return u->isAlive() && u->isInCombat() && i_obj->CanAssist(u) && i_obj->IsWithinDistInMap(u, i_range) && (u->IsImmobilized() || u->GetMaxNegativeAuraModifier(SPELL_AURA_MOD_DECREASE_SPEED) || u->isFeared() || u->IsPolymorphed() || u->isFrozen() || u->hasUnitState(UNIT_STAT_CAN_NOT_REACT));
+                return u->isAlive() && u->isInCombat() && i_obj->CanAssist(u) && i_obj->IsWithinDistInMap(u, i_range) && (u->IsImmobilizedState() || u->GetMaxNegativeAuraModifier(SPELL_AURA_MOD_DECREASE_SPEED) || u->isFrozen() || u->IsCrowdControlled());
             }
         private:
             Unit const* i_obj;
@@ -1011,6 +1012,10 @@ namespace MaNGOS
             WorldObject const& GetFocusObject() const { return *i_obj; }
             bool operator()(Unit* u) const
             {
+                // ignore totems
+                if (u->GetTypeId() == TYPEID_UNIT && ((Creature*)u)->IsTotem())
+                    return false;
+                
                 return u->isAlive() && i_obj->CanAttackSpell(u) && i_obj->IsWithinDistInMap(u, i_range) && i_obj->IsWithinLOSInMap(u);
             }
         private:
@@ -1258,8 +1263,9 @@ namespace MaNGOS
             WorldObject const& GetFocusObject() const { return *i_obj; }
             bool operator()(Creature* u)
             {
-                if (u == i_obj)
+                if (u == i_obj || u->isDead() || u->isInCombat())
                     return false;
+
                 if (!u->CanAssist(i_obj) || !u->CanAttack(i_enemy))
                     return false;
 

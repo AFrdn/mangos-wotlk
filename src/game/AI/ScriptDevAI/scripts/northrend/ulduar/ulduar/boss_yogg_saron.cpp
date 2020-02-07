@@ -21,9 +21,10 @@ SDComment: Illusion contain a lot of guesswork.
 SDCategory: Ulduar
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "ulduar.h"
 #include "Entities/TemporarySpawn.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {

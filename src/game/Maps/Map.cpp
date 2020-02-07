@@ -418,7 +418,7 @@ void Map::MessageBroadcast(Player const* player, WorldPacket const& msg, bool to
 
     MaNGOS::MessageDeliverer post_man(*player, msg, to_self);
     TypeContainerVisitor<MaNGOS::MessageDeliverer, WorldTypeMapContainer > message(post_man);
-    cell.Visit(p, message, *this, *player, GetVisibilityDistance());
+    cell.Visit(p, message, *this, *player, player->GetVisibilityData().GetVisibilityDistance());
 }
 
 void Map::MessageBroadcast(WorldObject const* obj, WorldPacket const& msg)
@@ -441,7 +441,7 @@ void Map::MessageBroadcast(WorldObject const* obj, WorldPacket const& msg)
     // we have alot of blinking mobs because monster move packet send is broken...
     MaNGOS::ObjectMessageDeliverer post_man(*obj, msg);
     TypeContainerVisitor<MaNGOS::ObjectMessageDeliverer, WorldTypeMapContainer > message(post_man);
-    cell.Visit(p, message, *this, *obj, GetVisibilityDistance());
+    cell.Visit(p, message, *this, *obj, obj->GetVisibilityData().GetVisibilityDistance());
 }
 
 void Map::MessageDistBroadcast(Player const* player, WorldPacket const& msg, float dist, bool to_self, bool own_team_only)
@@ -622,7 +622,7 @@ void Map::Update(const uint32& t_diff)
     }
 
     WorldObjectUnSet objToUpdate;
-    MaNGOS::ObjectUpdater obj_updater(objToUpdate);
+    MaNGOS::ObjectUpdater obj_updater(objToUpdate, t_diff);
     TypeContainerVisitor<MaNGOS::ObjectUpdater, GridTypeMapContainer  > grid_object_update(obj_updater);    // For creature
     TypeContainerVisitor<MaNGOS::ObjectUpdater, WorldTypeMapContainer > world_object_update(obj_updater);   // For pets
 
@@ -1012,23 +1012,23 @@ void Map::UpdateObjectVisibility(WorldObject* obj, Cell cell, const CellPair& ce
     cell.SetNoCreate();
     MaNGOS::VisibleChangesNotifier notifier(*obj);
     TypeContainerVisitor<MaNGOS::VisibleChangesNotifier, WorldTypeMapContainer > player_notifier(notifier);
-    cell.Visit(cellpair, player_notifier, *this, *obj, GetVisibilityDistance());
+    cell.Visit(cellpair, player_notifier, *this, *obj, obj->GetVisibilityData().GetVisibilityDistance());
 }
 
 void Map::SendInitSelf(Player* player) const
 {
     DETAIL_LOG("Creating player data for himself %u", player->GetGUIDLow());
 
-    UpdateData updateData;
+    UpdateData data;
 
     // attach to player data current transport data
     if (Transport* transport = player->GetTransport())
     {
-        transport->BuildCreateUpdateBlockForPlayer(&updateData, player);
+        transport->BuildCreateUpdateBlockForPlayer(&data, player);
     }
 
     // build data for self presence in world at own client (one time for map)
-    player->BuildCreateUpdateBlockForPlayer(&updateData, player);
+    player->BuildCreateUpdateBlockForPlayer(&data, player);
 
     // build other passengers at transport also (they always visible and marked as visible and will not send at visibility update at add to map
     if (Transport* transport = player->GetTransport())
@@ -1037,16 +1037,14 @@ void Map::SendInitSelf(Player* player) const
         {
             if (player != itr && player->HaveAtClient(itr))
             {
-                itr->BuildCreateUpdateBlockForPlayer(&updateData, player);
+                itr->BuildCreateUpdateBlockForPlayer(&data, player);
             }
         }
     }
 
-    for (size_t i = 0; i < updateData.GetPacketCount(); ++i)
-    {
-        WorldPacket packet = updateData.BuildPacket(i);
-        player->GetSession()->SendPacket(packet);
-    }
+    WorldPacket packet;
+    data.BuildPacket(packet);
+    player->GetSession()->SendPacket(packet);
 }
 
 void Map::SendInitTransports(Player* player) const
@@ -1058,7 +1056,7 @@ void Map::SendInitTransports(Player* player) const
     if (tmap.find(player->GetMapId()) == tmap.end())
         return;
 
-    UpdateData updateData;
+    UpdateData transData;
 
     MapManager::TransportSet& tset = tmap[player->GetMapId()];
 
@@ -1067,15 +1065,13 @@ void Map::SendInitTransports(Player* player) const
         // send data for current transport in other place
         if (i != player->GetTransport() && i->GetMapId() == i_id)
         {
-            i->BuildCreateUpdateBlockForPlayer(&updateData, player);
+            i->BuildCreateUpdateBlockForPlayer(&transData, player);
         }
     }
 
-    for (size_t i = 0; i < updateData.GetPacketCount(); ++i)
-    {
-        WorldPacket packet = updateData.BuildPacket(i);
-        player->GetSession()->SendPacket(packet);
-    }
+    WorldPacket packet;
+    transData.BuildPacket(packet);
+    player->GetSession()->SendPacket(packet);
 }
 
 void Map::SendRemoveTransports(Player* player) const
@@ -1087,20 +1083,18 @@ void Map::SendRemoveTransports(Player* player) const
     if (tmap.find(player->GetMapId()) == tmap.end())
         return;
 
-    UpdateData updateData;
+    UpdateData transData;
 
     MapManager::TransportSet& tset = tmap[player->GetMapId()];
 
     // except used transport
     for (auto i : tset)
         if (i != player->GetTransport() && i->GetMapId() != i_id)
-            i->BuildOutOfRangeUpdateBlock(&updateData);
+            i->BuildOutOfRangeUpdateBlock(&transData);
 
-    for (size_t i = 0; i < updateData.GetPacketCount(); ++i)
-    {
-        WorldPacket packet = updateData.BuildPacket(i);
-        player->GetSession()->SendPacket(packet);
-    }
+    WorldPacket packet;
+    transData.BuildPacket(packet);
+    player->GetSession()->SendPacket(packet);
 }
 
 inline void Map::setNGrid(NGridType* grid, uint32 x, uint32 y)
@@ -1814,7 +1808,7 @@ bool Map::ScriptsStart(ScriptMapMapName const& scripts, uint32 id, Object* sourc
     {
         ScriptAction sa(scripts.first, this, sourceGuid, targetGuid, ownerGuid, &iter.second);
 
-        m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + iter.first), sa));
+        m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(iter.first), sa);
 
         sScriptMgr.IncreaseScheduledScriptsCount();
     }
@@ -1833,7 +1827,7 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
 
     ScriptAction sa("Internal Activate Command used for spell", this, sourceGuid, targetGuid, ownerGuid, &script);
 
-    m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + delay), sa));
+    m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(delay), sa);
 
     sScriptMgr.IncreaseScheduledScriptsCount();
 }
@@ -1847,7 +1841,7 @@ void Map::ScriptsProcess()
     ///- Process overdue queued scripts
     ScriptScheduleMap::iterator iter = m_scriptSchedule.begin();
     // ok as multimap is a *sorted* associative container
-    while (!m_scriptSchedule.empty() && (iter->first <= sWorld.GetGameTime()))
+    while (!m_scriptSchedule.empty() && (iter->first <= GetCurrentClockTime()))
     {
         if (iter->second.HandleScriptStep())
         {
@@ -2018,13 +2012,12 @@ void Map::SendObjectUpdates()
         obj->BuildUpdateData(update_players);
     }
 
+    WorldPacket packet;                                     // here we allocate a std::vector with a size of 0x10000
     for (auto& update_player : update_players)
     {
-        for (size_t i = 0; i < update_player.second.GetPacketCount(); ++i)
-        {
-            WorldPacket packet = update_player.second.BuildPacket(i);
-            update_player.first->GetSession()->SendPacket(packet);
-        }
+        update_player.second.BuildPacket(packet);
+        update_player.first->GetSession()->SendPacket(packet);
+        packet.clear();                                     // clean the string
     }
 }
 
@@ -2264,10 +2257,10 @@ bool Map::ContainsGameObjectModel(const GameObjectModel& mdl) const
 }
 
 // This will generate a random point to all directions in water for the provided point in radius range.
-bool Map::GetRandomPointUnderWater(uint32 phaseMask, float& x, float& y, float& z, float radius, GridMapLiquidData& liquid_status) const
+bool Map::GetRandomPointUnderWater(uint32 phaseMask, float& x, float& y, float& z, float radius, GridMapLiquidData& liquid_status, bool randomRange/* = true*/) const
 {
     const float angle = rand_norm_f() * (M_PI_F * 2.0f);
-    const float range = rand_norm_f() * radius;
+    const float range = (randomRange ? rand_norm_f() : 1.f) * radius;
 
     float i_x = x + range * cos(angle);
     float i_y = y + range * sin(angle);
@@ -2298,10 +2291,10 @@ bool Map::GetRandomPointUnderWater(uint32 phaseMask, float& x, float& y, float& 
 }
 
 // This will generate a random point to all directions in air for the provided point in radius range.
-bool Map::GetRandomPointInTheAir(uint32 phaseMask, float& x, float& y, float& z, float radius) const
+bool Map::GetRandomPointInTheAir(uint32 phaseMask, float& x, float& y, float& z, float radius, bool randomRange/* = true*/) const
 {
     const float angle = rand_norm_f() * (M_PI_F * 2.0f);
-    const float range = rand_norm_f() * radius;
+    const float range = (randomRange ? rand_norm_f() : 1.f) * radius;
 
     float i_x = x + range * cos(angle);
     float i_y = y + range * sin(angle);
@@ -2324,11 +2317,11 @@ bool Map::GetRandomPointInTheAir(uint32 phaseMask, float& x, float& y, float& z,
 }
 
 // supposed to be used for not big radius, usually less than 20.0f
-bool Map::GetReachableRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z, float radius) const
+bool Map::GetReachableRandomPointOnGround(uint32 phaseMask, float& x, float& y, float& z, float radius, bool randomRange/* = true*/) const
 {
     // Generate a random range and direction for the new point
     const float angle = rand_norm_f() * (M_PI_F * 2.0f);
-    const float range = rand_norm_f() * radius;
+    const float range = (randomRange ? rand_norm_f() : 1.f) * radius;
 
     float i_x = x + range * cos(angle);
     float i_y = y + range * sin(angle);
@@ -2371,7 +2364,7 @@ bool Map::GetReachableRandomPointOnGround(uint32 phaseMask, float& x, float& y, 
 }
 
 // Get random point by handling different situation depending of if the unit is flying/swimming/walking
-bool Map::GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, float radius) const
+bool Map::GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, float radius, bool randomRange/* = true*/) const
 {
     float i_x = x;
     float i_y = y;
@@ -2400,7 +2393,7 @@ bool Map::GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, f
     bool newDestAssigned;   // used to check if new random destination is found
     if (isFlying)
     {
-        newDestAssigned = GetRandomPointInTheAir(unit->GetPhaseMask(), i_x, i_y, i_z, radius);
+        newDestAssigned = GetRandomPointInTheAir(unit->GetPhaseMask(), i_x, i_y, i_z, radius, randomRange);
         /*if (newDestAssigned)
         sLog.outString("Generating air random point for %s", GetGuidStr().c_str());*/
     }
@@ -2410,13 +2403,13 @@ bool Map::GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, f
         GridMapLiquidStatus res = m_TerrainData->getLiquidStatus(i_x, i_y, i_z, MAP_ALL_LIQUIDS, &liquid_status);
         if (isSwimming && (res & (LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER)))
         {
-            newDestAssigned = GetRandomPointUnderWater(unit->GetPhaseMask(), i_x, i_y, i_z, radius, liquid_status);
+            newDestAssigned = GetRandomPointUnderWater(unit->GetPhaseMask(), i_x, i_y, i_z, radius, liquid_status, randomRange);
             /*if (newDestAssigned)
             sLog.outString("Generating swim random point for %s", GetGuidStr().c_str());*/
         }
         else
         {
-            newDestAssigned = GetReachableRandomPointOnGround(unit->GetPhaseMask(), i_x, i_y, i_z, radius);
+            newDestAssigned = GetReachableRandomPointOnGround(unit->GetPhaseMask(), i_x, i_y, i_z, radius, randomRange);
             /*if (newDestAssigned)
             sLog.outString("Generating ground random point for %s", GetGuidStr().c_str());*/
         }

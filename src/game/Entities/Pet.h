@@ -133,9 +133,6 @@ typedef std::vector<uint32> AutoSpellList;
 
 #define ACTIVE_SPELLS_MAX           4
 
-#define PET_FOLLOW_DIST  1.0f
-#define PET_FOLLOW_ANGLE (M_PI_F / 2.0f)
-
 class Player;
 
 class Pet : public Creature
@@ -188,8 +185,6 @@ class Pet : public Creature
                 return owner->GetTypeId() == TYPEID_PLAYER ? true : ((Creature const*)owner)->CanSwim();
             return Creature::CanSwim();
         }
-
-        bool CanFly() const { return false; } // pet are not able to fly. TODO: check if this is right
 
         void RegenerateAll(uint32 update_diff) override;    // overwrite Creature::RegenerateAll
         void LooseHappiness();

@@ -614,6 +614,9 @@ void BattleGround::CastSpellOnTeam(uint32 SpellID, Team teamId)
 
 void BattleGround::RewardHonorToTeam(uint32 Honor, Team teamId)
 {
+    if (teamId == TEAM_NONE)
+        return;
+
     for (BattleGroundPlayerMap::const_iterator itr = m_Players.begin(); itr != m_Players.end(); ++itr)
     {
         if (itr->second.OfflineRemoveTime)
@@ -1629,14 +1632,13 @@ void BattleGround::SpawnBGObject(ObjectGuid guid, uint32 respawntime)
         // we need to change state from GO_JUST_DEACTIVATED to GO_READY in case battleground is starting again
         if (obj->GetLootState() == GO_JUST_DEACTIVATED)
             obj->SetLootState(GO_READY);
-        obj->SetRespawnTime(0);
-        map->Add(obj);
+        obj->Respawn();
     }
     else
     {
-        map->Add(obj);
-        obj->SetRespawnTime(respawntime);
         obj->SetLootState(GO_JUST_DEACTIVATED);
+        obj->SetRespawnDelay(respawntime);
+        obj->SetForcedDespawn();
     }
 }
 

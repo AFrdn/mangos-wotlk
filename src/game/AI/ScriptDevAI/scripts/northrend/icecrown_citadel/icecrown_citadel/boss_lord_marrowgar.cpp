@@ -21,7 +21,7 @@ SDComment:
 SDCategory: Icecrown Citadel
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "icecrown_citadel.h"
 #include "Entities/TemporarySpawn.h"
 
@@ -156,7 +156,7 @@ struct boss_lord_marrowgarAI : public ScriptedAI
             float fX, fY;
             float fZ = pSummoned->GetPositionZ();
             // Note: the NearPoint2D function may not be correct here, because we may use a wrong Z value
-            m_creature->GetNearPoint2D(fX, fY, 80.0f, m_creature->GetAngle(pSummoned));
+            m_creature->GetNearPoint2d(fX, fY, 80.0f, m_creature->GetAngle(pSummoned));
             pSummoned->GetMotionMaster()->MovePoint(0, fX, fY, fZ, false);
         }
     }

@@ -21,8 +21,9 @@ SDComment: The movement points for the volunteers are not 100% blizzlike. On ret
 SDCategory: Ahn'kahet
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "ahnkahet.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {
@@ -448,7 +449,7 @@ bool EffectAuraDummy_spell_aura_dummy_sacrifice_beam(const Aura* pAura, bool bAp
             if (ScriptedInstance* pInstance = (ScriptedInstance*)pTarget->GetInstanceData())
             {
                 if (Creature* pJedoga = pInstance->GetSingleCreatureFromStorage(NPC_JEDOGA_SHADOWSEEKER))
-                    pJedoga->DealDamage(pTarget, pTarget->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                    pJedoga->Suicide();
             }
         }
     }

@@ -1381,12 +1381,12 @@ void Loot::Release(Player* player)
                 {
                     Creature* creature = (Creature*)m_lootTarget;
                     SetPlayerIsNotLooting(player);
+                    updateClients = true;
 
                     if (m_isFakeLoot)
                     {
                         SendReleaseForAll();
                         creature->SetLootStatus(CREATURE_LOOT_STATUS_LOOTED);
-                        m_lootTarget->ForceValuesUpdateAtIndex(UNIT_DYNAMIC_FLAGS);
                         break;
                     }
 
@@ -1430,7 +1430,7 @@ void Loot::ShowContentTo(Player* plr)
     {
         if (static_cast<GameObject*>(m_lootTarget)->IsInUse())
         {
-            SendReleaseFor(plr);
+            plr->SendLootError(m_guidTarget, LOOT_ERROR_LOCKED);
             return;
         }
 
@@ -1676,9 +1676,6 @@ Loot::Loot(Player* player, Creature* creature, LootType type) :
         case LOOT_PICKPOCKETING:
         {
             m_clientLootType = CLIENT_LOOT_PICKPOCKETING;
-
-            if (!creature->isAlive() || player->getClass() != CLASS_ROGUE)
-                return;
 
             // setting loot right
             m_ownerSet.insert(player->GetObjectGuid());
@@ -3044,7 +3041,7 @@ Loot* LootMgr::GetLoot(Player* player, ObjectGuid const& targetGuid) const
 
             // not check distance for GO in case owned GO (fishing bobber case, for example)
             if (gob)
-                loot = gob->loot;
+                loot = gob->m_loot;
 
             break;
         }
@@ -3053,7 +3050,7 @@ Loot* LootMgr::GetLoot(Player* player, ObjectGuid const& targetGuid) const
             Corpse* bones = player->GetMap()->GetCorpse(lguid);
 
             if (bones)
-                loot = bones->loot;
+                loot = bones->m_loot;
 
             break;
         }
@@ -3061,7 +3058,7 @@ Loot* LootMgr::GetLoot(Player* player, ObjectGuid const& targetGuid) const
         {
             Item* item = player->GetItemByGuid(lguid);
             if (item && item->HasGeneratedLoot())
-                loot = item->loot;
+                loot = item->m_loot;
             break;
         }
         case HIGHGUID_UNIT:
@@ -3070,7 +3067,7 @@ Loot* LootMgr::GetLoot(Player* player, ObjectGuid const& targetGuid) const
             Creature* creature = player->GetMap()->GetCreature(lguid);
 
             if (creature)
-                loot = creature->loot;
+                loot = creature->m_loot;
 
             break;
         }

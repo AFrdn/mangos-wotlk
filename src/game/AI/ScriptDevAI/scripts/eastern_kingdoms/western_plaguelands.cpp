@@ -29,7 +29,7 @@ npc_isillien
 npc_tirion_fordring
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 
 /*######
@@ -44,8 +44,8 @@ struct npc_the_scourge_cauldronAI : public ScriptedAI
 
     void DoDie()
     {
-        // summoner dies here
-        m_creature->DealDamage(m_creature, m_creature->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+        // summoner dies here - TODO: Check suicide spell
+        m_creature->Suicide();
         // override any database `spawntimesecs` to prevent duplicated summons
         uint32 rTime = m_creature->GetRespawnDelay();
         if (rTime < 600)

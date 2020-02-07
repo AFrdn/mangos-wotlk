@@ -34,7 +34,7 @@ npc_fellow_death_knight
 npc_scarlet_courier
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "world_map_ebon_hold.h"
 #include "AI/ScriptDevAI/base/pet_ai.h"
@@ -1103,7 +1103,7 @@ struct npc_eye_of_acherusAI : public ScriptedAI
                     m_creature->SetDisplayId(26320);                // HACK remove when correct modelid will be taken by core
 
                     DoCastSpellIfCan(m_creature, SPELL_EYE_VISUAL, CAST_TRIGGERED);
-                    m_creature->SetRoot(true);
+                    m_creature->SetImmobilizedState(true);
                     m_creature->GetMotionMaster()->MovePoint(POINT_EYE_DESTINATION, aEyeStartPos[0], aEyeStartPos[1], aEyeStartPos[2]);
                 }
                 else
@@ -1127,7 +1127,7 @@ struct npc_eye_of_acherusAI : public ScriptedAI
                     // Update Speed for Eye
                     DoScriptText(EMOTE_DESTIANTION, m_creature, player);
                     DoCastSpellIfCan(m_creature, SPELL_EYE_FLIGHT_BOOST, CAST_FORCE_TARGET_SELF);
-                    m_creature->SetRoot(false);
+                    m_creature->SetImmobilizedState(false);
                     ++m_phase;
                 }
                 else
@@ -1245,7 +1245,7 @@ struct npc_scarlet_ghoulAI : public ScriptedPetAI
         {
             if (m_uiUnsummonTimer <= uiDiff)
             {
-                m_creature->DealDamage(m_creature, m_creature->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                m_creature->Suicide();
                 if (m_creature->IsPet())
                     ((Pet*)m_creature)->Unsummon(PET_SAVE_AS_DELETED);
                 return;
@@ -1625,7 +1625,7 @@ struct npc_highlord_darion_mograineAI : public npc_escortAI
                 for (GuidList::const_iterator itr = m_lAttackersGUIDs.begin(); itr != m_lAttackersGUIDs.end(); ++itr)
                 {
                     if (Creature* pTemp = m_creature->GetMap()->GetCreature(*itr))
-                        pTemp->DealDamage(pTemp, pTemp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                        pTemp->Suicide();
                 }
 
                 // light fighters despawn
@@ -2236,7 +2236,7 @@ struct npc_highlord_darion_mograineAI : public npc_escortAI
                                 for (GuidList::const_iterator itr = m_lDefendersGUIDs.begin(); itr != m_lDefendersGUIDs.end(); ++itr)
                                 {
                                     if (Creature* pTemp = m_creature->GetMap()->GetCreature(*itr))
-                                        pTemp->DealDamage(pTemp, pTemp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, TRIGGERED_NONE);
+                                        pTemp->Suicide();
                                 }
                                 // workaround for the light champions - spell doesn't work right
                                 for (auto& i : aLightArmySpawnLoc)

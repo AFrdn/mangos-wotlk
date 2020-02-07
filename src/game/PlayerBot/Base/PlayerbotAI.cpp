@@ -3983,7 +3983,7 @@ void PlayerbotAI::DoLoot()
             m_bot->GetMotionMaster()->MoveIdle();
             return;
         }
-        else if (c->loot && !c->loot->CanLoot(m_bot) && !c->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE))
+        else if (c->m_loot && !c->m_loot->CanLoot(m_bot) && !c->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE))
         {
             if (GetManager()->m_confDebugWhisper)
                 TellMaster("%s is not lootable by me.", wo->GetName());
@@ -5583,7 +5583,7 @@ SpellCastResult PlayerbotAI::CastSpell(uint32 spellId)
     // Power check
     // We use Spell::CheckPower() instead of UnitAI::CanCastSpell() because bots are players and have more requirements than mere units
     Spell* tmp_spell = new Spell(m_bot, pSpellInfo, false);
-    SpellCastResult res = tmp_spell->CheckPower();
+    SpellCastResult res = tmp_spell->CheckPower(true);
     if (res != SPELL_CAST_OK)
         return res;
 
@@ -5781,7 +5781,7 @@ SpellCastResult PlayerbotAI::Buff(uint32 spellId, Unit* target, void (*beforeCas
             break;
 
         bool sameOrBetterAuraFound = false;
-        int32 bonus = m_bot->CalculateSpellDamage(target, spellProto, SpellEffectIndex(i));
+        int32 bonus = m_bot->CalculateSpellEffectValue(target, spellProto, SpellEffectIndex(i));
         Unit::AuraList const& auras = target->GetAurasByType(AuraType(spellProto->EffectApplyAuraName[i]));
         for (Unit::AuraList::const_iterator it = auras.begin(); it != auras.end(); ++it)
             if ((*it)->GetModifier()->m_miscvalue == spellProto->EffectMiscValue[i] && (*it)->GetModifier()->m_amount >= bonus)
@@ -5817,7 +5817,7 @@ SpellCastResult PlayerbotAI::SelfBuff(uint32 spellId)
 // Checks if spell is single per target per caster and will make any effect on target
 bool PlayerbotAI::CanReceiveSpecificSpell(uint8 spec, Unit* target) const
 {
-    if (IsSingleFromSpellSpecificPerTargetPerCaster(SpellSpecific(spec), SpellSpecific(spec)))
+    if (IsSpellSpecificUniquePerCaster(SpellSpecific(spec)))
     {
         Unit::SpellAuraHolderMap holders = target->GetSpellAuraHolderMap();
         Unit::SpellAuraHolderMap::iterator it;
@@ -6136,7 +6136,7 @@ bool PlayerbotAI::PickPocket(Unit* pTarget)
     Creature* c = m_bot->GetMap()->GetCreature(markGuid);
     if (c)
     {
-        Loot*& loot = c->loot;
+        Loot*& loot = c->m_loot;
         if (!loot)
             loot = new Loot(m_bot, c, LOOT_PICKPOCKETING);
         else
@@ -7506,10 +7506,10 @@ void PlayerbotAI::findNearbyCorpse()
         if (!corpse)
             continue;
 
-        if (!corpse->IsCorpse() || corpse->IsDespawned() || m_bot->CanAssist(corpse) || !corpse->loot)
+        if (!corpse->IsCorpse() || corpse->IsDespawned() || m_bot->CanAssist(corpse) || !corpse->m_loot)
             continue;
 
-        if (!corpse->loot->CanLoot(m_bot) && !corpse->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE))
+        if (!corpse->m_loot->CanLoot(m_bot) && !corpse->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE))
             continue;
 
         uint32 skillId = 0;

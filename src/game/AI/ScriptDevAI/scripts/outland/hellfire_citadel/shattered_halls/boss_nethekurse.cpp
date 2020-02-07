@@ -27,7 +27,7 @@ mob_fel_orc_convert
 mob_lesser_shadow_fissure
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "shattered_halls.h"
 
 enum
@@ -109,6 +109,8 @@ struct boss_grand_warlock_nethekurseAI : public ScriptedAI
         m_uiDeathCoilTimer = 20000;
         m_uiShadowFissureTimer = 8000;
         m_uiCleaveTimer = 5000;
+
+        SetCombatMovement(true);
     }
 
     void DoYellForPeonAggro(Unit* /*pWho*/)

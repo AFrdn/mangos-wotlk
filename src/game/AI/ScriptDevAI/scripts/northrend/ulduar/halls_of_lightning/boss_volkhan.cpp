@@ -21,7 +21,7 @@ SDComment: The dummy spells need more research and should be handled in core
 SDCategory: Halls of Lightning
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "halls_of_lightning.h"
 
 enum
@@ -379,7 +379,7 @@ struct mob_molten_golemAI : public ScriptedAI
         if (pSpell->Id == SPELL_SHATTER || pSpell->Id == SPELL_SHATTER_H)
         {
             if (m_creature->GetEntry() == NPC_BRITTLE_GOLEM)
-                m_creature->DealDamage(m_creature, m_creature->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                m_creature->Suicide();
         }
     }
 

@@ -21,8 +21,9 @@ SDComment: Crystal spikes may need small adjustments.
 SDCategory: Nexus
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "nexus.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {

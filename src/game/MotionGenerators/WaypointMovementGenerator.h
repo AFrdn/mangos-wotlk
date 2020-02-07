@@ -103,21 +103,4 @@ class WaypointMovementGenerator<Creature>
         WaypointPathOrigin m_PathOrigin;
 };
 
-/** FlightPathMovementGenerator generates movement of the player for the paths
- * and hence generates ground and activities for the player.
- */
-class FlightPathMovementGenerator
-    : public MovementGeneratorMedium< Player, FlightPathMovementGenerator >
-{
-    public:
-        void Initialize(Player&);
-        void Finalize(Player&);
-        void Interrupt(Player&);
-        void Reset(Player&);
-        bool Update(Player&, const uint32&);
-        MovementGeneratorType GetMovementGeneratorType() const override { return FLIGHT_MOTION_TYPE; }
-        void DoEventIfAny(Player& player, TaxiPathNodeEntry const* node, bool departure);
-        bool Resume(Player& player) const;
-};
-
 #endif

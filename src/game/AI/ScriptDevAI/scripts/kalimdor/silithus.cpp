@@ -25,7 +25,7 @@ EndScriptData */
 npc_anachronos_the_ancient
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 
 /*###
 ## npc_anachronos_the_ancient
@@ -923,11 +923,7 @@ struct npc_solenorAI : public ScriptedAI
                     if (Unit* pUnit = m_creature->GetMap()->GetUnit(itr->getUnitGuid()))
                     {
                         if (pUnit->isAlive())
-                        {
-                            pCleaner->SetInCombatWith(pUnit);
-                            pCleaner->AddThreat(pUnit);
                             pCleaner->AI()->AttackStart(pUnit);
-                        }
                     }
                 }
             }

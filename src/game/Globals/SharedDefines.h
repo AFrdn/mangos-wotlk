@@ -186,7 +186,7 @@ enum SpellSchools
 /**
  * A bitmask of the available SpellSchools. Used for convenience
  */
-enum SpellSchoolMask
+enum SpellSchoolMask : uint32
 {
     SPELL_SCHOOL_MASK_NONE    = 0x00,                       // not exist
     SPELL_SCHOOL_MASK_NORMAL  = (1 << SPELL_SCHOOL_NORMAL), // PHYSICAL (Armor)
@@ -419,7 +419,7 @@ enum SpellAttributesEx3
 enum SpellAttributesEx4
 {
     SPELL_ATTR_EX4_IGNORE_RESISTANCES          = 0x00000001,// 0
-    SPELL_ATTR_EX4_UNK1                        = 0x00000002,// 1 proc on finishing move?
+    SPELL_ATTR_EX4_PROC_ONLY_ON_CASTER         = 0x00000002,// 1 Only proc on self-cast
     SPELL_ATTR_EX4_UNK2                        = 0x00000004,// 2
     SPELL_ATTR_EX4_UNK3                        = 0x00000008,// 3
     SPELL_ATTR_EX4_UNK4                        = 0x00000010,// 4 This will no longer cause guards to attack on use??
@@ -1829,7 +1829,8 @@ enum LockKeyType
 {
     LOCK_KEY_NONE  = 0,
     LOCK_KEY_ITEM  = 1,
-    LOCK_KEY_SKILL = 2
+    LOCK_KEY_SKILL = 2,
+    LOCK_KEY_SPELL = 3,
 };
 
 enum LockType
@@ -2934,6 +2935,12 @@ enum LootType
     LOOT_SPELL          = 24,
 
     LOOT_DEBUG          = 100
+};
+
+enum MovementEvent
+{
+    EVENT_CHARGE = 10000,
+    EVENT_JUMP   = 10001, // TODO: Implement knockback using this
 };
 
 #endif

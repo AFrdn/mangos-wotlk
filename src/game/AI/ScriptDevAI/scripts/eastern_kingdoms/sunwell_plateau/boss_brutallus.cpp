@@ -21,8 +21,9 @@ SDComment: Intro may need some adjustments
 SDCategory: Sunwell Plateau
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "sunwell_plateau.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {

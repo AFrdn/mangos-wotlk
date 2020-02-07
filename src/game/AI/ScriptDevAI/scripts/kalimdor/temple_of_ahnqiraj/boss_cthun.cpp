@@ -21,7 +21,7 @@ SDComment: Transform spell has some minor core issues. Eject from stomach event 
 SDCategory: Temple of Ahn'Qiraj
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "temple_of_ahnqiraj.h"
 
 enum
@@ -198,7 +198,7 @@ struct boss_eye_of_cthunAI : public Scripted_NoMovementAI
         for (GuidList::const_iterator itr = m_lEyeTentaclesList.begin(); itr != m_lEyeTentaclesList.end(); ++itr)
         {
             if (Creature* pTemp = m_creature->GetMap()->GetCreature(*itr))
-                pTemp->DealDamage(pTemp, pTemp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                pTemp->Suicide();
         }
 
         m_lEyeTentaclesList.clear();
@@ -488,7 +488,7 @@ struct boss_cthunAI : public Scripted_NoMovementAI
         for (GuidList::const_iterator itr = m_lEyeTentaclesList.begin(); itr != m_lEyeTentaclesList.end(); ++itr)
         {
             if (Creature* pTemp = m_creature->GetMap()->GetCreature(*itr))
-                pTemp->DealDamage(pTemp, pTemp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                pTemp->Suicide();
         }
 
         m_lEyeTentaclesList.clear();

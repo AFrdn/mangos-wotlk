@@ -26,7 +26,7 @@ npc_ame01
 npc_ringo
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "AI/ScriptDevAI/base/follower_ai.h"
 
@@ -539,11 +539,7 @@ struct npc_simone_seductressAI : public ScriptedAI
                     if (Unit* pUnit = m_creature->GetMap()->GetUnit(itr->getUnitGuid()))
                     {
                         if (pUnit->isAlive())
-                        {
-                            pCleaner->SetInCombatWith(pUnit);
-                            pCleaner->AddThreat(pUnit);
                             pCleaner->AI()->AttackStart(pUnit);
-                        }
                     }
                 }
 
@@ -556,11 +552,7 @@ struct npc_simone_seductressAI : public ScriptedAI
                         if (Unit* pUnit = m_creature->GetMap()->GetUnit(itr->getUnitGuid()))
                         {
                             if (pUnit->isAlive())
-                            {
-                                pCleaner->SetInCombatWith(pUnit);
-                                pCleaner->AddThreat(pUnit);
                                 pCleaner->AI()->AttackStart(pUnit);
-                            }
                         }
                     }
                 }

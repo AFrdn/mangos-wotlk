@@ -26,7 +26,7 @@ boss_kelidan_the_breaker
 mob_shadowmoon_channeler
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "blood_furnace.h"
 
 enum
@@ -384,7 +384,7 @@ struct mob_shadowmoon_channelerAI : public ScriptedAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (m_setupTimer && !m_creature->IsInEvadeMode())
+        if (m_setupTimer && !m_creature->GetCombatManager().IsInEvadeMode())
         {
             if (m_setupTimer <= uiDiff)
             {

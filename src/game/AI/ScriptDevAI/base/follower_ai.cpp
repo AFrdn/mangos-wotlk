@@ -9,7 +9,7 @@ SDComment: This AI is under development
 SDCategory: Npc
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/follower_ai.h"
 
 const float MAX_PLAYER_DISTANCE = 100.0f;
@@ -24,22 +24,6 @@ FollowerAI::FollowerAI(Creature* creature) : ScriptedAI(creature),
     m_followState(STATE_FOLLOW_NONE),
     m_questForFollow(nullptr)
 {}
-
-void FollowerAI::AttackStart(Unit* who)
-{
-    if (!who)
-        return;
-
-    if (m_creature->Attack(who, m_meleeEnabled))
-    {
-        m_creature->AddThreat(who);
-        m_creature->SetInCombatWith(who);
-        who->SetInCombatWith(m_creature);
-
-        if (IsCombatMovement())
-            m_creature->GetMotionMaster()->MoveChase(who);
-    }
-}
 
 // This part provides assistance to a player that are attacked by pWho, even if out of normal aggro range
 // It will cause m_creature to attack pWho that are attacking _any_ player (which has been confirmed may happen also on offi)
@@ -76,8 +60,7 @@ bool FollowerAI::AssistPlayerInCombat(Unit* who)
             AttackStart(who);
             return true;
         }
-        who->SetInCombatWith(m_creature);
-        m_creature->AddThreat(who);
+        m_creature->EngageInCombatWith(who);
         return true;
     }
 

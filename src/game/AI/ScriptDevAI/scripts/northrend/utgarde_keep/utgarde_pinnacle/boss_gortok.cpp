@@ -21,8 +21,9 @@ SDComment: Timers; The subbosses and Gortok should be activated on aura remove
 SDCategory: Utgarde Pinnacle
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "utgarde_pinnacle.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {

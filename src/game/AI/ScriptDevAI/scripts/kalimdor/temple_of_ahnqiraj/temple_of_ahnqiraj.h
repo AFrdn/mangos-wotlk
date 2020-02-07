@@ -7,7 +7,7 @@
 
 enum
 {
-    MAX_ENCOUNTER               = 9,
+    MAX_ENCOUNTER               = 10,
 
     TYPE_SKERAM                 = 0,
     TYPE_BUG_TRIO               = 1,
@@ -18,16 +18,18 @@ enum
     TYPE_TWINS                  = 6,
     TYPE_OURO                   = 7,
     TYPE_CTHUN                  = 8,
+    TYPE_TWINS_INTRO            = 9,
 
     NPC_SKERAM                  = 15263,
-    // NPC_KRI                   = 15511,
-    // NPC_VEM                   = 15544,
-    // NPC_YAUJ                  = 15543,
+    NPC_KRI                     = 15511,
+    NPC_VEM                     = 15544,
+    NPC_YAUJ                    = 15543,
     NPC_SARTURA                 = 15516,
     NPC_VEKLOR                  = 15276,
     NPC_VEKNILASH               = 15275,
     NPC_MASTERS_EYE             = 15963,
     NPC_OURO_SPAWNER            = 15957,
+    NPC_VISCIDUS                = 15299,
     // NPC_EYE_OF_CTHUN          = 15589,
     NPC_CTHUN                   = 15727,
 
@@ -37,6 +39,7 @@ enum
     GO_SANDWORM_BASE            = 180795,
 
     EMOTE_EYE_INTRO             = -1531012,
+    STAND_EMPERORS_INTRO        = 1,
     SAY_EMPERORS_INTRO_1        = -1531013,
     SAY_EMPERORS_INTRO_2        = -1531014,
     SAY_EMPERORS_INTRO_3        = -1531015,
@@ -65,9 +68,18 @@ enum
     SPELL_WHISPERINGS_CTHUN_3   = 26198,
     SPELL_WHISPERINGS_CTHUN_4   = 26258,
     SPELL_WHISPERINGS_CTHUN_5   = 26259,
+
+    NPC_VISCIDUS_TRIGGER        = 15925,
+    NPC_POISON_CLOUD            = 15933,
+
+    NPC_QIRAJI_SCARAB           = 15316,
+    NPC_QIRAJI_SCORPION         = 15317,
 };
 
-class instance_temple_of_ahnqiraj : public ScriptedInstance
+// Prophecies yelled by Propher Skeram before he is engaged
+static const uint32 sound_skeram_prophecy[] = { 8616, 8621, 8619, 8620, 8618 };
+
+class instance_temple_of_ahnqiraj : public ScriptedInstance, private DialogueHelper
 {
     public:
         instance_temple_of_ahnqiraj(Map* pMap);
@@ -77,18 +89,19 @@ class instance_temple_of_ahnqiraj : public ScriptedInstance
 
         bool IsEncounterInProgress() const override;
 
-        void OnCreatureCreate(Creature* pCreature) override;
+        void OnCreatureCreate(Creature* creature) override;
         void OnObjectCreate(GameObject* pGo) override;
+        void OnCreatureRespawn(Creature* creature) override;
 
         void SetData(uint32 uiType, uint32 uiData) override;
         uint32 GetData(uint32 uiType) const override;
 
-        void DoHandleTempleAreaTrigger(uint32 uiTriggerId);
+        void DoHandleTempleAreaTrigger(uint32 triggerId, Player* player);
 
         const char* Save() const override { return m_strInstData.c_str(); }
         void Load(const char* chrIn) override;
 
-        void Update(const uint32 diff) override;
+        void Update(uint32 uiDiff) override;
 
     private:
         uint32 m_auiEncounter[MAX_ENCOUNTER];
@@ -96,10 +109,11 @@ class instance_temple_of_ahnqiraj : public ScriptedInstance
 
         uint8 m_uiBugTrioDeathCount;
         uint32 m_uiCthunWhisperTimer;
+        uint32 m_uiSkeramProphecyTimer;
 
-        bool m_bIsEmperorsIntroDone;
+        GuidVector m_bugTrioSpawns;
 
-        DialogueHelper m_dialogueHelper;
+        void JustDidDialogueStep(int32 entry) override;
 };
 
 #endif

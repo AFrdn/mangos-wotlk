@@ -31,34 +31,50 @@
 #include "Entities/NPCHandler.h"
 #include "Server/SQLStorages.h"
 
-void WorldSession::SendNameQueryOpcode(Player* p) const
+void WorldSession::SendNameQueryResponse(CharacterNameQueryResponse& response) const
 {
-    if (!p)
-        return;
     // guess size
     WorldPacket data(SMSG_NAME_QUERY_RESPONSE, (8 + 1 + 1 + 1 + 1 + 1 + 10));
-    data << p->GetPackGUID();                               // player guid
-    data << uint8(0);                                       // added in 3.1; if > 1, then end of packet
-    data << p->GetName();                                   // played name
-    data << uint8(0);                                       // realm name for cross realm BG usage
-    data << uint8(p->getRace());
-    data << uint8(p->getGender());
-    data << uint8(p->getClass());
-    if (DeclinedName const* names = p->GetDeclinedNames())
+    data << response.guid.WriteAsPacked();
+
+    // Added in 3.1: non-existent character short packet response
+    if (response.name.empty())
     {
-        data << uint8(1);                                   // is declined
-        for (const auto& i : names->name)
-            data << i;
+        data << uint8(1);
+        SendPacket(data);
+        return;
     }
     else
-        data << uint8(0);                                   // is not declined
+        data << uint8(0);
+
+    data << response.name;
+
+    if (response.realm.empty())
+        data << uint8(0);
+    else
+        data << response.realm;
+
+    data << uint8(response.race);
+    data << uint8(response.gender);
+    data << uint8(response.classid);
+
+    // if the first declined name field is empty, the rest must be too
+    if (response.declined.name[0].empty())
+        data << uint8(0);
+    else
+    {
+        data << uint8(1);
+
+        for (const auto& i : response.declined.name)
+            data << i;
+    }
 
     SendPacket(data);
 }
 
-void WorldSession::SendNameQueryOpcodeFromDB(ObjectGuid guid) const
+void WorldSession::SendNameQueryResponseFromDB(ObjectGuid guid) const
 {
-    CharacterDatabase.AsyncPQuery(&WorldSession::SendNameQueryOpcodeFromDBCallBack, GetAccountId(),
+    CharacterDatabase.AsyncPQuery(&WorldSession::SendNameQueryResponseFromDBCallBack, GetAccountId(),
                                   !sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) ?
                                   //   ------- Query Without Declined Names --------
                                   //          0     1     2     3       4
@@ -74,7 +90,7 @@ void WorldSession::SendNameQueryOpcodeFromDB(ObjectGuid guid) const
                                   guid.GetCounter());
 }
 
-void WorldSession::SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32 accountId)
+void WorldSession::SendNameQueryResponseFromDBCallBack(QueryResult* result, uint32 accountId)
 {
     if (!result)
         return;
@@ -87,38 +103,32 @@ void WorldSession::SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32
     }
 
     Field* fields = result->Fetch();
-    uint32 lowguid      = fields[0].GetUInt32();
-    std::string name = fields[1].GetCppString();
-    uint8 pRace = 0, pGender = 0, pClass = 0;
-    if (name.empty())
-        name         = session->GetMangosString(LANG_NON_EXIST_CHARACTER);
-    else
+
+    CharacterNameQueryResponse response;
+
+    response.guid = ObjectGuid(HIGHGUID_PLAYER, fields[0].GetUInt32());
+    response.name = fields[1].GetCppString();
+    response.realm = "";
+
+    if (!response.name.empty())
     {
-        pRace        = fields[2].GetUInt8();
-        pGender      = fields[3].GetUInt8();
-        pClass       = fields[4].GetUInt8();
+        response.race = fields[2].GetUInt8();
+        response.gender = fields[3].GetUInt8();
+        response.classid = fields[4].GetUInt8();
     }
-    // guess size
-    WorldPacket data(SMSG_NAME_QUERY_RESPONSE, (8 + 1 + 1 + 1 + 1 + 1 + 1 + 10));
-    data << ObjectGuid(HIGHGUID_PLAYER, lowguid).WriteAsPacked();
-    data << uint8(0);                                       // added in 3.1; if > 1, then end of packet
-    data << name;
-    data << uint8(0);                                       // realm name for cross realm BG usage
-    data << uint8(pRace);                                   // race
-    data << uint8(pGender);                                 // gender
-    data << uint8(pClass);                                  // class
 
     // if the first declined name field (5) is empty, the rest must be too
     if (sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) && !fields[5].GetCppString().empty())
     {
-        data << uint8(1);                                   // is declined
-        for (int i = 5; i < MAX_DECLINED_NAME_CASES + 5; ++i)
-            data << fields[i].GetCppString();
+         for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+            response.declined.name[i] = fields[(5 + i)].GetCppString();
     }
-    else
-        data << uint8(0);                                   // is not declined
 
-    session->SendPacket(data);
+    if (session->m_sessionState != WORLD_SESSION_STATE_READY)
+        session->m_offlineNameResponses.push_back(response);
+    else
+        session->SendNameQueryResponse(response);
+
     delete result;
 }
 
@@ -128,12 +138,41 @@ void WorldSession::HandleNameQueryOpcode(WorldPacket& recv_data)
 
     recv_data >> guid;
 
+    // When not logged in: check if name was already queried
+    if (m_sessionState != WORLD_SESSION_STATE_READY)
+    {
+        auto result = m_offlineNameQueries.insert(guid);
+
+        if (!result.second)
+            return;
+    }
+
     Player* pChar = sObjectMgr.GetPlayer(guid);
 
     if (pChar)
-        SendNameQueryOpcode(pChar);
+    {
+        CharacterNameQueryResponse response;
+
+        response.guid = pChar->GetObjectGuid();
+        response.name = pChar->GetName();
+        response.realm = "";
+        response.race = uint32(pChar->getRace());
+        response.gender = uint32(pChar->getGender());
+        response.classid = uint32(pChar->getClass());
+
+        if (DeclinedName const* declined = pChar->GetDeclinedNames())
+        {
+            for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+               response.declined.name[i] = declined->name[i];
+        }
+
+        if (m_sessionState != WORLD_SESSION_STATE_READY)
+            m_offlineNameResponses.push_back(response);
+        else
+            SendNameQueryResponse(response);
+    }
     else
-        SendNameQueryOpcodeFromDB(guid);
+        SendNameQueryResponseFromDB(guid);
 }
 
 void WorldSession::HandleQueryTimeOpcode(WorldPacket& /*recv_data*/)
@@ -312,12 +351,12 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPacket& recv_data)
 
     DETAIL_LOG("WORLD: CMSG_NPC_TEXT_QUERY ID '%u'", textID);
 
-    GossipText const* pGossip = sObjectMgr.GetGossipText(textID);
+    GossipText const* gossip = sObjectMgr.GetGossipText(textID);
 
     WorldPacket data(SMSG_NPC_TEXT_UPDATE, 100);            // guess size
     data << textID;
 
-    if (!pGossip)
+    if (!gossip)
     {
         for (uint32 i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
         {
@@ -336,19 +375,29 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPacket& recv_data)
     else
     {
         std::string Text_0[MAX_GOSSIP_TEXT_OPTIONS], Text_1[MAX_GOSSIP_TEXT_OPTIONS];
+        bool locales = true;
+        int loc_idx = GetSessionDbLocaleIndex();
         for (int i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
         {
-            Text_0[i] = pGossip->Options[i].Text_0;
-            Text_1[i] = pGossip->Options[i].Text_1;
+            if (gossip->Options[i].broadcastTextId)
+            {
+                locales = false;
+                Text_0[i] = sObjectMgr.GetBroadcastText(gossip->Options[i].broadcastTextId)->GetText(loc_idx, GENDER_MALE);
+                Text_1[i] = sObjectMgr.GetBroadcastText(gossip->Options[i].broadcastTextId)->GetText(loc_idx, GENDER_FEMALE);
+            }
+            else if (locales)
+            {
+                Text_0[i] = gossip->Options[i].Text_0;
+                Text_1[i] = gossip->Options[i].Text_1;
+            }
         }
 
-        int loc_idx = GetSessionDbLocaleIndex();
-
-        sObjectMgr.GetNpcTextLocaleStringsAll(textID, loc_idx, &Text_0, &Text_1);
+        if (locales)
+            sObjectMgr.GetNpcTextLocaleStringsAll(textID, loc_idx, &Text_0, &Text_1);
 
         for (int i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
         {
-            data << pGossip->Options[i].Probability;
+            data << gossip->Options[i].Probability;
 
             if (Text_0[i].empty())
                 data << Text_1[i];
@@ -360,9 +409,9 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPacket& recv_data)
             else
                 data << Text_1[i];
 
-            data << pGossip->Options[i].Language;
+            data << gossip->Options[i].Language;
 
-            for (auto Emote : pGossip->Options[i].Emotes)
+            for (auto Emote : gossip->Options[i].Emotes)
             {
                 data << Emote._Delay;
                 data << Emote._Emote;

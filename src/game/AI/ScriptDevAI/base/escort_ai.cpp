@@ -9,7 +9,7 @@ SDComment:
 SDCategory: Npc
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "AI/ScriptDevAI/system/system.h"
 #include "MotionGenerators/WaypointManager.h"
@@ -83,8 +83,7 @@ bool npc_escortAI::AssistPlayerInCombat(Unit* who)
             AttackStart(who);
             return true;
         }
-        who->SetInCombatWith(m_creature);
-        m_creature->AddThreat(who);
+        m_creature->EngageInCombatWith(who);
         return true;
     }
 

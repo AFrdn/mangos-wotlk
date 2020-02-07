@@ -21,9 +21,10 @@ SDComment:
 SDCategory: Ahn'kahet
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "ahnkahet.h"
 #include "Entities/TemporarySpawn.h"
+#include "Spells/SpellAuras.h"
 
 instance_ahnkahet::instance_ahnkahet(Map* pMap) : ScriptedInstance(pMap),
     m_bRespectElders(false),

@@ -25,7 +25,7 @@ EndScriptData */
 npc_ranshalla
 EndContentData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 
 /*######
@@ -618,11 +618,7 @@ struct npc_artoriusAI : public ScriptedAI
                     if (Unit* pUnit = m_creature->GetMap()->GetUnit(itr->getUnitGuid()))
                     {
                         if (pUnit->isAlive())
-                        {
-                            pCleaner->SetInCombatWith(pUnit);
-                            pCleaner->AddThreat(pUnit);
                             pCleaner->AI()->AttackStart(pUnit);
-                        }
                     }
                 }
             }

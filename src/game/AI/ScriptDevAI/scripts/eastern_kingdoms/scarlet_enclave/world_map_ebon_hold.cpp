@@ -21,7 +21,7 @@ SDComment:
 SDCategory: Ebon Hold
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "world_map_ebon_hold.h"
 
 world_map_ebon_hold::world_map_ebon_hold(Map* pMap) : ScriptedInstance(pMap),
@@ -249,7 +249,7 @@ void world_map_ebon_hold::DoDespawnArmy()
         if (Creature* pTemp = instance->GetCreature(*itr))
         {
             if (pTemp->isAlive())
-                pTemp->DealDamage(pTemp, pTemp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                pTemp->Suicide();
         }
     }
 }

@@ -21,6 +21,7 @@
 #include "Spells/SpellAuraDefines.h"
 #include "Server/DBCEnums.h"
 #include "Entities/ObjectGuid.h"
+#include "Spells/Scripts/SpellScript.h"
 
 /**
  * Used to modify what an Aura does to a player/npc.
@@ -192,6 +193,12 @@ class SpellAuraHolder
         bool HasMechanicMask(uint32 mechanicMask) const;
 
         void SetCreationDelayFlag();
+
+        // Scripting system
+        AuraScript* GetAuraScript() const { return m_auraScript; }
+        // hooks
+        void OnHolderInit();
+        void OnDispel(Unit* dispeller, uint32 dispellingSpellId, uint32 originalStacks);
     private:
         SpellEntry const* m_spellProto;
 
@@ -221,6 +228,11 @@ class SpellAuraHolder
         bool m_isRemovedOnShapeLost: 1;
         bool m_deleted: 1;
         bool m_skipUpdate: 1;
+
+        uint32 m_heartBeatTimer;                            // HeartbeatResist
+
+        // Scripting System
+        AuraScript* m_auraScript;
 };
 
 typedef void(Aura::*pAuraHandler)(bool Apply, bool Real);
@@ -285,7 +297,7 @@ class Aura
         void HandleAuraModRangedAttackPower(bool apply, bool Real);
         void HandleAuraModIncreaseEnergyPercent(bool apply, bool Real);
         void HandleAuraModIncreaseHealthPercent(bool apply, bool Real);
-        void HandleAuraModRegenInterrupt(bool Apply, bool Real);
+        void HandleAuraModRegenInterrupt(bool apply, bool Real);
         void HandleModMeleeSpeedPct(bool apply, bool Real);
         void HandlePeriodicTriggerSpell(bool apply, bool Real);
         void HandlePeriodicTriggerSpellWithValue(bool apply, bool Real);
@@ -294,6 +306,7 @@ class Aura
         void HandleAuraSafeFall(bool Apply, bool Real);
         void HandleAuraModPetTalentsPoints(bool Apply, bool Real);
         void HandleModStealth(bool apply, bool Real);
+        void HandleModStealthDetect(bool apply, bool real);
         void HandleInvisibility(bool apply, bool Real);
         void HandleInvisibilityDetect(bool apply, bool Real);
         void HandleAuraModTotalHealthPercentRegen(bool apply, bool Real);
@@ -332,12 +345,14 @@ class Aura
         void HandlePeriodicHealthFunnel(bool apply, bool Real);
         void HandleModCastingSpeed(bool apply, bool Real);
         void HandleAuraMounted(bool apply, bool Real);
-        void HandleWaterBreathing(bool Apply, bool Real);
+        void HandleWaterBreathing(bool apply, bool real);
+        void HandleModStealthLevel(bool apply, bool real);
         void HandleModWaterBreathing(bool apply, bool Real);
         void HandleModBaseResistance(bool apply, bool Real);
         void HandleModRegen(bool apply, bool Real);
         void HandleModPowerRegen(bool apply, bool Real);
         void HandleModPowerRegenPCT(bool Apply, bool Real);
+        void HandleModHealingPCT(bool apply, bool real);
         void HandleChannelDeathItem(bool apply, bool Real);
         void HandleDamagePercentTaken(bool apply, bool Real);
         void HandlePeriodicDamagePCT(bool apply, bool Real);
@@ -415,6 +430,7 @@ class Aura
         void HandlePrayerOfMending(bool apply, bool Real);
         void HandleTriggerLinkedAura(bool apply, bool Real);
         void HandleAuraDetaunt(bool Apply, bool Real);
+        void HandleOverrideClassScript(bool apply, bool real);
 
         virtual ~Aura();
 
@@ -468,6 +484,7 @@ class Aura
         void UpdateAura(uint32 diff) { Update(diff); }
 
         void SetRemoveMode(AuraRemoveMode mode) { m_removeMode = mode; }
+        AuraRemoveMode GetRemoveMode() { return m_removeMode; }
 
         virtual Unit* GetTriggerTarget() const { return m_spellAuraHolder->GetTarget(); }
 
@@ -490,6 +507,22 @@ class Aura
 
         void UseMagnet() { m_magnetUsed = true; }
         bool IsMagnetUsed() const { return m_magnetUsed; }
+
+        // Scripting system
+        AuraScript* GetAuraScript() const { return GetHolder()->GetAuraScript(); }
+        // hooks
+        int32 OnAuraValueCalculate(Unit* caster, int32 currentValue);
+        void OnDamageCalculate(int32& advertisedBenefit, float& totalMod);
+        void OnApply(bool apply);
+        bool OnCheckProc();
+        SpellAuraProcResult OnProc(ProcExecutionData& data);
+        void OnAbsorb(int32& currentAbsorb, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath);
+        void OnManaAbsorb(int32& currentAbsorb);
+        void OnAuraDeathPrevention(int32& remainingDamage);
+        void OnPeriodicTrigger(PeriodicTriggerData& data);
+        void OnPeriodicDummy();
+        void OnPeriodicTickEnd();
+        void OnPeriodicCalculateAmount(uint32& amount);
     protected:
         Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = nullptr, Item* castItem = nullptr);
 
@@ -502,6 +535,9 @@ class Aura
 
         bool IsCritFromAbilityAura(Unit* caster, uint32& damage) const;
         void ReapplyAffectedPassiveAuras();
+
+        void PickTargetsForSpellTrigger(Unit *& triggerCaster, Unit *& triggerTarget, WorldObject *& triggerTargetObject, SpellEntry const* spellInfo);
+        void CastTriggeredSpell(PeriodicTriggerData& data);
 
         Modifier m_modifier;
 
@@ -522,6 +558,9 @@ class Aura
         bool m_magnetUsed: 1;
 
         SpellAuraHolder* const m_spellAuraHolder;
+
+        // Scripting system
+        uint64 m_scriptValue; // persistent value for spell script state
     private:
         void ReapplyAffectedPassiveAuras(Unit* target, bool owner_mode);
 };

@@ -21,8 +21,9 @@ SDComment: The gauntlet movement needs to be random choosed for left and right. 
 SDCategory: Utgarde Pinnacle
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "utgarde_pinnacle.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {
@@ -370,7 +371,7 @@ struct npc_graufAI : public ScriptedAI
             }
 
             // Deal 35% damage on each harpoon hit
-            m_creature->DealDamage(m_creature, m_creature->GetMaxHealth() * 0.35f, nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+            Unit::DealDamage(m_creature, m_creature, m_creature->GetMaxHealth() * 0.35f, nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
         }
         // TODO: Temporary workaround - please remove when the boarding wrappers are implemented in core
         else if (pSpell->Id == SPELL_RIDE_VEHICLE && pCaster->GetEntry() == NPC_SKADI)

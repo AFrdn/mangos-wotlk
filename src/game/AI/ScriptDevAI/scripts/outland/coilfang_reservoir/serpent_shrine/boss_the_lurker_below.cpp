@@ -21,7 +21,7 @@ SDComment: Spawn animation NYI; Timers may need adjustments.
 SDCategory: Coilfang Resevoir, Serpent Shrine Cavern
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "serpent_shrine.h"
 
 enum
@@ -78,7 +78,6 @@ struct boss_the_lurker_belowAI : public Scripted_NoMovementAI
     {
         m_pInstance = (ScriptedInstance*)pCreature->GetInstanceData();
         m_creature->SetSwim(true);
-        m_creature->SetIgnoreRangedTargets(true);
         Reset();
     }
 
@@ -109,6 +108,8 @@ struct boss_the_lurker_belowAI : public Scripted_NoMovementAI
         m_uiEmergingTimer   = 0;
         m_iWaterbolt        = -1;
         m_uiStartTimer      = 2000;
+
+        m_creature->SetImmobilizedState(true);
     }
 
     void JustReachedHome() override
@@ -157,6 +158,7 @@ struct boss_the_lurker_belowAI : public Scripted_NoMovementAI
     void JustRespawned() override
     {
         m_creature->SetInCombatWithZone();
+        AttackClosestEnemy();
     }
 
     void UpdateAI(const uint32 uiDiff) override
@@ -287,7 +289,7 @@ struct boss_the_lurker_belowAI : public Scripted_NoMovementAI
                     m_uiGeyserTimer -= uiDiff;
 
                 // If victim exists we have a target in melee range
-                if (m_creature->getVictim())
+                if (m_creature->getVictim() && m_creature->CanReachWithMeleeAttack(m_creature->getVictim()))
                 {
                     m_iWaterbolt = -1;
                     DoMeleeAttackIfReady();

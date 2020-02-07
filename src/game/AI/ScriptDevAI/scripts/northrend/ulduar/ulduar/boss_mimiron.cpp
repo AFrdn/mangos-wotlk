@@ -21,7 +21,7 @@ SDComment: Laser Barrage rotation require additional research.
 SDCategory: Ulduar
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "ulduar.h"
 
 enum
@@ -695,9 +695,9 @@ struct boss_mimironAI : public ScriptedAI, private DialogueHelper
                     StartNextDialogueText(SPELL_SLEEP_VISUAL);
 
                     // kill the robot parts
-                    m_creature->DealDamage(pLeviathan, pLeviathan->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
-                    m_creature->DealDamage(pVx001, pVx001->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
-                    m_creature->DealDamage(pAerial, pAerial->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                    Unit::DealDamage(m_creature, pLeviathan, pLeviathan->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                    Unit::DealDamage(m_creature, pVx001, pVx001->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                    Unit::DealDamage(m_creature, pAerial, pAerial->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
                 }
                 m_uiWakeUpTimer = 0;
             }
@@ -847,7 +847,7 @@ struct boss_leviathan_mk2AI : public ScriptedAI
                     if (Creature* pTurret = m_pInstance->GetSingleCreatureFromStorage(NPC_LEVIATHAN_MK_TURRET))
                     {
                         m_creature->RemoveSpellsCausingAura(SPELL_AURA_CONTROL_VEHICLE, pTurret->GetObjectGuid());
-                        m_creature->DealDamage(pTurret, pTurret->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                        Unit::DealDamage(m_creature, pTurret, pTurret->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
                     }
                 }
 
@@ -1707,7 +1707,7 @@ struct npc_bot_triggerAI : public Scripted_NoMovementAI
                 {
                     if (Creature* pAerial = m_pInstance->GetSingleCreatureFromStorage(NPC_AERIAL_UNIT))
                     {
-                        if (DoCastSpellIfCan(m_creature, m_uiSummonSpell, CAST_TRIGGERED, pAerial->GetObjectGuid()) == CAST_OK)
+                        if (DoCastSpellIfCan(m_creature, m_uiSummonSpell, CAST_TRIGGERED) == CAST_OK)
                             m_uiSummonTimer = 0;
                     }
                 }

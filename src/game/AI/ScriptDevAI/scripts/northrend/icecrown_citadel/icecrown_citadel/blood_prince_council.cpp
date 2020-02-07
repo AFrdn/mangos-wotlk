@@ -21,7 +21,7 @@ SDComment: Timers; Some details are not very clear about this encounter: spells 
 SDCategory: Icecrown Citadel
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "icecrown_citadel.h"
 
 enum
@@ -406,13 +406,13 @@ struct npc_blood_orb_controlAI : public Scripted_NoMovementAI
 
             // Kill the 3 princes
             if (Creature* pTmp = m_pInstance->GetSingleCreatureFromStorage(NPC_VALANAR))
-                m_creature->DealDamage(pTmp, pTmp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                m_creature->Suicide();
 
             if (Creature* pTmp = m_pInstance->GetSingleCreatureFromStorage(NPC_KELESETH))
-                m_creature->DealDamage(pTmp, pTmp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                m_creature->Suicide();
 
             if (Creature* pTmp = m_pInstance->GetSingleCreatureFromStorage(NPC_TALDARAM))
-                m_creature->DealDamage(pTmp, pTmp->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+                m_creature->Suicide();
         }
     }
 

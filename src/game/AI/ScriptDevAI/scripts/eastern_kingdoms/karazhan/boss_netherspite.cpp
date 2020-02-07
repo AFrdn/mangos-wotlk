@@ -21,7 +21,7 @@ SDComment:
 SDCategory: Karazhan
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "karazhan.h"
 
 enum
@@ -365,6 +365,7 @@ struct npc_netherspite_portalAI : public Scripted_NoMovementAI
     {
         m_pInstance = (ScriptedInstance*)pCreature->GetInstanceData();
         m_uiOrientationTimer = 0;
+        m_creature->GetCombatManager().SetLeashingDisable(true);
         Reset();
     }
 

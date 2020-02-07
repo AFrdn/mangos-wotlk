@@ -150,7 +150,7 @@ class CharacterHandler
 
             // The bot's WorldSession is owned by the bot's Player object
             // The bot's WorldSession is deleted by PlayerbotMgr::LogoutPlayerBot
-            WorldSession* botSession = new WorldSession(lqh->GetAccountId(), NULL, SEC_PLAYER, masterSession->Expansion(), 0, LOCALE_enUS);
+            WorldSession* botSession = new WorldSession(lqh->GetAccountId(), NULL, SEC_PLAYER, masterSession->GetExpansion(), 0, LOCALE_enUS);
             botSession->HandlePlayerLogin(lqh); // will delete lqh
             masterSession->GetPlayer()->GetPlayerbotMgr()->OnBotLogin(botSession->GetPlayer());
         }
@@ -266,19 +266,19 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     }
 
     // prevent character creating Expansion race without Expansion account
-    if (raceEntry->expansion > Expansion())
+    if (raceEntry->expansion > GetExpansion())
     {
         data << (uint8)CHAR_CREATE_EXPANSION;
-        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", Expansion(), GetAccountId(), raceEntry->expansion, race_);
+        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", GetExpansion(), GetAccountId(), raceEntry->expansion, race_);
         SendPacket(data);
         return;
     }
 
     // prevent character creating Expansion class without Expansion account
-    if (classEntry->expansion > Expansion())
+    if (classEntry->expansion > GetExpansion())
     {
         data << (uint8)CHAR_CREATE_EXPANSION_CLASS;
-        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", Expansion(), GetAccountId(), classEntry->expansion, class_);
+        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", GetExpansion(), GetAccountId(), classEntry->expansion, class_);
         SendPacket(data);
         return;
     }
@@ -680,6 +680,8 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         return;
     }
 
+    Group* group = pCurrChar->GetGroup();
+
     pCurrChar->SendDungeonDifficulty(false);
 
     WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);
@@ -702,6 +704,8 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     // Send Spam records
     SendExpectedSpamRecords();
     SendMotd();
+
+    SendOfflineNameQueryResponses();
 
     // QueryResult *result = CharacterDatabase.PQuery("SELECT guildid,rank FROM guild_member WHERE guid = '%u'",pCurrChar->GetGUIDLow());
     QueryResult* resultGuild = holder->GetResult(PLAYER_LOGIN_QUERY_LOADGUILD);
@@ -774,7 +778,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         MapEntry const* mapEntry = sMapStore.LookupEntry(pCurrChar->GetMapId());
         if (!mapEntry)
             lockStatus = AREA_LOCKSTATUS_UNKNOWN_ERROR;
-        else if (pCurrChar->GetSession()->Expansion() < mapEntry->Expansion())
+        else if (pCurrChar->GetSession()->GetExpansion() < mapEntry->Expansion())
             lockStatus = AREA_LOCKSTATUS_INSUFFICIENT_EXPANSION;
     }
     if (lockStatus != AREA_LOCKSTATUS_OK || !pCurrChar->GetMap()->Add(pCurrChar))
@@ -790,6 +794,10 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     sObjectAccessor.AddObject(pCurrChar);
     // DEBUG_LOG("Player %s added to Map.",pCurrChar->GetName());
 
+    if (group)
+        group->SendUpdateTo(pCurrChar);
+
+
     pCurrChar->SendInitialPacketsAfterAddToMap();
 
     static SqlStatementID updChars;
@@ -803,11 +811,11 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     pCurrChar->SetInGameTime(WorldTimer::getMSTime());
 
-    // announce group about member online (must be after add to player list to receive announce to self)
-    if (Group* group = pCurrChar->GetGroup())
+    // Send group member online status for other members
+    if (group)
         group->UpdatePlayerOnlineStatus(pCurrChar);
 
-    // friend status
+    // Send friend list online status for other players
     sSocialMgr.SendFriendStatus(pCurrChar, FRIEND_ONLINE, pCurrChar->GetObjectGuid(), true);
 
     // Place character in world (and load zone) before some object loading
@@ -907,7 +915,10 @@ void WorldSession::HandlePlayerReconnect()
     // reset all visible objects to be able to resend them
     _player->m_clientGUIDs.clear();
 
+    Group* group = _player->GetGroup();
+
     _player->SendDungeonDifficulty(false);
+
     WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);
     data << _player->GetMapId();
     data << _player->GetPositionX();
@@ -926,6 +937,8 @@ void WorldSession::HandlePlayerReconnect()
     // Send Spam records
     SendExpectedSpamRecords();
     SendMotd();
+
+    SendOfflineNameQueryResponses();
 
     if (_player->GetGuildId() != 0)
     {
@@ -961,6 +974,9 @@ void WorldSession::HandlePlayerReconnect()
 
     _player->GetMap()->CreatePlayerOnClient(_player);
 
+    if (group)
+        group->SendUpdateTo(_player);
+
     _player->GetSocial()->SendSocialList();
     uint32 areaId = 0;
     uint32 zoneId = 0;
@@ -970,11 +986,7 @@ void WorldSession::HandlePlayerReconnect()
     _player->SendEnchantmentDurations();                             // must be after add to map
     _player->SendItemDurations();                                    // must be after add to map
 
-    // announce group about member online (must be after add to player list to receive announce to self)
-    if (Group* group = _player->GetGroup())
-        group->UpdatePlayerOnlineStatus(_player);
-
-    // friend status
+    // Send friend list online status for other players
     sSocialMgr.SendFriendStatus(_player, FRIEND_ONLINE, _player->GetObjectGuid(), true);
 
     // show time before shutdown if shutdown planned.

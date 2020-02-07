@@ -27,6 +27,7 @@
 #include "Chat/Chat.h"
 #include "Spells/Spell.h"
 #include "Entities/Unit.h"
+#include "World/World.h"
 #include "Maps/Map.h"
 
 bool IsPrimaryProfessionSkill(uint32 skill)
@@ -339,7 +340,6 @@ WeaponAttackType GetWeaponAttackType(SpellEntry const* spellInfo)
         case SPELL_DAMAGE_CLASS_RANGED:
             return RANGED_ATTACK;
         default:
-            // Wands
         {
             // Wands
             if (spellInfo->HasAttribute(SPELL_ATTR_EX2_AUTOREPEAT_FLAG))
@@ -464,15 +464,12 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
             if (spellInfo->SpellFamilyFlags & uint64(0x12040000))
                 return SPELL_MAGE_ARMOR;
 
-            if ((spellInfo->SpellFamilyFlags & uint64(0x1000000)) && spellInfo->EffectApplyAuraName[EFFECT_INDEX_0] == SPELL_AURA_MOD_CONFUSE)
-                return SPELL_MAGE_POLYMORPH;
-
             break;
         }
         case SPELLFAMILY_WARRIOR:
         {
             if (spellInfo->SpellFamilyFlags & uint64(0x00008000010000))
-                return SPELL_POSITIVE_SHOUT;
+                return SPELL_SHOUT_BUFF;
 
             break;
         }
@@ -485,6 +482,14 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
             // Warlock (Demon Armor | Demon Skin | Fel Armor)
             if (spellInfo->IsFitToFamilyMask(uint64(0x2000002000000000), 0x00000010))
                 return SPELL_WARLOCK_ARMOR;
+
+            // Drain Soul and Shadowburn
+            if (IsSpellHaveAura(spellInfo, SPELL_AURA_CHANNEL_DEATH_ITEM))
+                return SPELL_SOUL_CAPTURE;
+
+            // Corruption and Seed of Corruption
+            if (spellInfo->IsFitToFamilyMask(uint64(0x1000000002)))
+                return SPELL_CORRUPTION_DEBUFF;
 
             // Unstable Affliction | Immolate
             if (spellInfo->IsFitToFamilyMask(uint64(0x0000010000000004)))
@@ -551,9 +556,9 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
     }
 
     // Tracking spells (exclude Well Fed, some other always allowed cases)
-    if (IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_CREATURES) ||
-            IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_STEALTHED) ||
-            (IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_RESOURCES) && !spellInfo->HasAttribute(SPELL_ATTR_PASSIVE) && !spellInfo->HasAttribute(SPELL_ATTR_CANT_CANCEL)))
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX6_UNK12) && (IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_CREATURES) ||
+        IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_STEALTHED) ||
+        IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_RESOURCES)))
         return SPELL_TRACKER;
 
     // elixirs can have different families, but potion most ofc.
@@ -561,81 +566,6 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
         return sp;
 
     return SPELL_NORMAL;
-}
-
-// target not allow have more one spell specific from same caster
-bool IsSingleFromSpellSpecificPerTargetPerCaster(SpellSpecific spellSpec1, SpellSpecific spellSpec2)
-{
-    switch (spellSpec1)
-    {
-        case SPELL_BLESSING:
-        case SPELL_AURA:
-        case SPELL_STING:
-        case SPELL_CURSE:
-        case SPELL_ASPECT:
-        case SPELL_POSITIVE_SHOUT:
-        case SPELL_JUDGEMENT:
-        case SPELL_HAND:
-        case SPELL_UA_IMMOLATE:
-            return spellSpec1 == spellSpec2;
-        default:
-            return false;
-    }
-}
-
-// target not allow have more one ranks from spell from spell specific per target
-bool IsSingleFromSpellSpecificSpellRanksPerTarget(SpellSpecific spellSpec1, SpellSpecific spellSpec2)
-{
-    switch (spellSpec1)
-    {
-        case SPELL_BLESSING:
-        case SPELL_AURA:
-        case SPELL_CURSE:
-        case SPELL_ASPECT:
-        case SPELL_HAND:
-            return spellSpec1 == spellSpec2;
-        default:
-            return false;
-    }
-}
-
-// target not allow have more one spell specific per target from any caster
-bool IsSingleFromSpellSpecificPerTarget(SpellSpecific spellSpec1, SpellSpecific spellSpec2)
-{
-    switch (spellSpec1)
-    {
-        case SPELL_SEAL:
-        case SPELL_TRACKER:
-        case SPELL_WARLOCK_ARMOR:
-        case SPELL_MAGE_ARMOR:
-        case SPELL_ELEMENTAL_SHIELD:
-        case SPELL_MAGE_POLYMORPH:
-        case SPELL_PRESENCE:
-        case SPELL_WELL_FED:
-            return spellSpec1 == spellSpec2;
-        case SPELL_BATTLE_ELIXIR:
-            return spellSpec2 == SPELL_BATTLE_ELIXIR
-                   || spellSpec2 == SPELL_FLASK_ELIXIR;
-        case SPELL_GUARDIAN_ELIXIR:
-            return spellSpec2 == SPELL_GUARDIAN_ELIXIR
-                   || spellSpec2 == SPELL_FLASK_ELIXIR;
-        case SPELL_FLASK_ELIXIR:
-            return spellSpec2 == SPELL_BATTLE_ELIXIR
-                   || spellSpec2 == SPELL_GUARDIAN_ELIXIR
-                   || spellSpec2 == SPELL_FLASK_ELIXIR;
-        case SPELL_FOOD:
-            return spellSpec2 == SPELL_FOOD
-                   || spellSpec2 == SPELL_FOOD_AND_DRINK;
-        case SPELL_DRINK:
-            return spellSpec2 == SPELL_DRINK
-                   || spellSpec2 == SPELL_FOOD_AND_DRINK;
-        case SPELL_FOOD_AND_DRINK:
-            return spellSpec2 == SPELL_FOOD
-                   || spellSpec2 == SPELL_DRINK
-                   || spellSpec2 == SPELL_FOOD_AND_DRINK;
-        default:
-            return false;
-    }
 }
 
 bool IsExplicitPositiveTarget(uint32 targetA)
@@ -681,7 +611,7 @@ uint32 GetAffectedTargets(SpellEntry const* spellInfo, Unit* caster)
                 case 802:                                   // Mutate Bug (AQ40, Emperor Vek'nilash)
                 case 804:                                   // Explode Bug (AQ40, Emperor Vek'lor)
                 case 23138:                                 // Gate of Shazzrah (MC, Shazzrah)
-                case 23173:                                 // Brood Affliction (BWL, Chromaggus)
+                case 23173:                                 // Brood Affliction (BWL, Chromaggus) - TODO: Remove along with rework
                 case 24019:                                 // Axe Flurry (ZG - Gurubashi Axe Thrower)
                 case 24150:                                 // Stinger Charge Primer (AQ20, Hive'Zara Stinger)
                 case 24781:                                 // Dream Fog (Emerald Dragons)
@@ -866,8 +796,6 @@ uint32 GetAffectedTargets(SpellEntry const* spellInfo, Unit* caster)
                 case 26457:                                 // Drain Mana (correct number has to be researched)
                 case 26559:
                     return 12;
-                case 25991:                                 // Poison Bolt Volley (AQ40, Pincess Huhuran)
-                    return 15;
                 case 61916:                                 // Lightning Whirl (Ulduar, Stormcaller Brundir)
                     return urand(2, 3);
                 case 46771:                                 // Flame Sear (SWP, Grand Warlock Alythess)
@@ -890,8 +818,12 @@ uint32 GetAffectedTargets(SpellEntry const* spellInfo, Unit* caster)
                     }
                     break;
                 }
-                default:
-                    break;
+                case 42471:                                 // Hatch Eggs
+                    if (UnitAI* ai = static_cast<Unit*>(caster)->AI())
+                        return ai->GetScriptData();
+                    else
+                        return 1; // for testing purposes
+                default: break;
             }
             break;
         }
@@ -899,8 +831,8 @@ uint32 GetAffectedTargets(SpellEntry const* spellInfo, Unit* caster)
         {
             switch (spellInfo->Id)
             {
-                case 23603:								// Wild Polymorph (BWL, Nefarian)
-                case 38194:								// Blink
+                case 23603:                             // Wild Polymorph (BWL, Nefarian)
+                case 38194:                             // Blink
                     return 1;
                 default:
                     break;
@@ -2682,20 +2614,24 @@ SpellEntry const* SpellMgr::SelectAuraRankForLevel(SpellEntry const* spellInfo, 
     if (!needRankSelection || GetSpellRank(spellInfo->Id) == 0)
         return spellInfo;
 
-    for (uint32 nextSpellId = spellInfo->Id; nextSpellId != 0; nextSpellId = GetPrevSpellInChain(nextSpellId))
+    // Check for lower rank of same spell if config is set to auto downrank
+    if (sWorld.getConfig(CONFIG_BOOL_AUTO_DOWNRANK))
     {
-        SpellEntry const* nextSpellInfo = sSpellTemplate.LookupEntry<SpellEntry>(nextSpellId);
-        if (!nextSpellInfo)
-            break;
+        for (uint32 nextSpellId = spellInfo->Id; nextSpellId != 0; nextSpellId = GetPrevSpellInChain(nextSpellId))
+        {
+            SpellEntry const* nextSpellInfo = sSpellTemplate.LookupEntry<SpellEntry>(nextSpellId);
+            if (!nextSpellInfo)
+                break;
 
-        // if found appropriate level
-        if (level + 10 >= nextSpellInfo->spellLevel)
-            return nextSpellInfo;
+            // if found appropriate level
+            if (level + 10 >= nextSpellInfo->spellLevel)
+                return nextSpellInfo;
 
-        // one rank less then
+            // one rank less then
+        }
     }
 
-    // not found
+    // Recipient is too low level
     return nullptr;
 }
 

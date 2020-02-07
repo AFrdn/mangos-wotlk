@@ -21,9 +21,10 @@ SDComment: Zombies spawns partially implemented
 SDCategory: Culling of Stratholme
 EndScriptData */
 
-#include "AI/ScriptDevAI/include/precompiled.h"
+#include "AI/ScriptDevAI/include/sc_common.h"
 #include "culling_of_stratholme.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
+#include "Spells/SpellAuras.h"
 
 /* *************
 ** npc_chromie (gossip, quest-accept)
@@ -967,7 +968,7 @@ bool EffectDummyCreature_npc_spell_dummy_crusader_strike(Unit* /*pCaster*/, uint
     {
         // only apply this for certain citizens
         if (pCreatureTarget->GetEntry() == NPC_STRATHOLME_RESIDENT || pCreatureTarget->GetEntry() == NPC_STRATHOLME_CITIZEN)
-            pCreatureTarget->DealDamage(pCreatureTarget, pCreatureTarget->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NONE, nullptr, false);
+            pCreatureTarget->Suicide();
         // always return true when we are handling this spell and effect
         return true;
     }
