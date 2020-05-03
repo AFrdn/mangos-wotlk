@@ -139,7 +139,7 @@ struct boss_taldaramAI : public ScriptedAI
         m_creature->LoadCreatureAddon(true);
 
         // should evade on the ground
-        if (m_creature->isAlive())
+        if (m_creature->IsAlive())
             m_creature->GetMotionMaster()->MovePoint(1, aTaldaramLandingLoc[0], aTaldaramLandingLoc[1], aTaldaramLandingLoc[2]);
 
         m_creature->SetLootRecipient(nullptr);
@@ -213,7 +213,7 @@ struct boss_taldaramAI : public ScriptedAI
                 m_uiVisualTimer -= uiDiff;
         }
 
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         // Cast Embrace of the Vampyr after Vanish expires - note: because of the invisibility effect, the timers won't decrease during vanish

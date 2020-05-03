@@ -205,7 +205,7 @@ struct boss_xt_002AI : public ScriptedAI
         m_creature->SetStandState(UNIT_STAND_STATE_STAND);
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
-        DoStartMovement(m_creature->getVictim());
+        DoStartMovement(m_creature->GetVictim());
 
         // reset timers as well
         m_uiLightBombTimer = 10000;
@@ -229,7 +229,7 @@ struct boss_xt_002AI : public ScriptedAI
                 if (Creature* pHeart = m_pInstance->GetSingleCreatureFromStorage(NPC_HEART_DECONSTRUCTOR))
                 {
                     // safeguard in case the Heart isn't respawned
-                    if (!pHeart->isAlive())
+                    if (!pHeart->IsAlive())
                         pHeart->Respawn();
 
                     pHeart->AI()->EnterEvadeMode();
@@ -244,7 +244,7 @@ struct boss_xt_002AI : public ScriptedAI
                 m_uiMountTimer -= uiDiff;
         }
 
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiBerserkTimer)
@@ -496,7 +496,7 @@ struct npc_scrapbotAI : public ScriptedAI
 
     void MoveInLineOfSight(Unit* pWho) override
     {
-        if (!m_bIsHealed && pWho->GetEntry() == NPC_XT002 && pWho->isAlive() && pWho->IsWithinDistInMap(m_creature, 10.0f))
+        if (!m_bIsHealed && pWho->GetEntry() == NPC_XT002 && pWho->IsAlive() && pWho->IsWithinDistInMap(m_creature, 10.0f))
         {
             DoCastSpellIfCan(pWho, SPELL_RIDE_VEHICLE_SCRAPBOT, CAST_TRIGGERED);
             pWho->CastSpell(m_creature, SPELL_SCRAP_REPAIR, TRIGGERED_OLD_TRIGGERED);

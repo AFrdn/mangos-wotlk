@@ -33,6 +33,7 @@
 #include "Database/DatabaseImpl.h"
 #include "Tools/PlayerDump.h"
 #include "Social/SocialMgr.h"
+#include "GMTickets/GMTicketMgr.h"
 #include "Util.h"
 #include "Tools/Language.h"
 #include "Spells/SpellMgr.h"
@@ -818,6 +819,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     // Send friend list online status for other players
     sSocialMgr.SendFriendStatus(pCurrChar, FRIEND_ONLINE, pCurrChar->GetObjectGuid(), true);
 
+    // GM ticket notifications
+    sTicketMgr.OnPlayerOnlineState(*pCurrChar, true);
+
     // Place character in world (and load zone) before some object loading
     pCurrChar->LoadCorpse();
 
@@ -893,7 +897,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     sLog.outChar("Account: %d (IP: %s) Login Character:[%s] (guid: %u)",
                  GetAccountId(), GetRemoteAddress().c_str(), pCurrChar->GetName(), pCurrChar->GetGUIDLow());
 
-    if (!pCurrChar->IsStandState() && !pCurrChar->hasUnitState(UNIT_STAT_STUNNED))
+    if (!pCurrChar->IsStandState() && !pCurrChar->IsStunned())
         pCurrChar->SetStandState(UNIT_STAND_STATE_STAND);
 
     m_playerLoading = false;
@@ -962,7 +966,7 @@ void WorldSession::HandlePlayerReconnect()
         }
     }
 
-    if (!_player->isAlive())
+    if (!_player->IsAlive())
         _player->SendCorpseReclaimDelay(true);
 
     data.Initialize(SMSG_LEARNED_DANCE_MOVES, 4 + 4);
@@ -988,6 +992,9 @@ void WorldSession::HandlePlayerReconnect()
 
     // Send friend list online status for other players
     sSocialMgr.SendFriendStatus(_player, FRIEND_ONLINE, _player->GetObjectGuid(), true);
+
+    // GM ticket notifications
+    sTicketMgr.OnPlayerOnlineState(*_player, true);
 
     // show time before shutdown if shutdown planned.
     if (sWorld.IsShutdowning())
@@ -1017,6 +1024,12 @@ void WorldSession::HandlePlayerReconnect()
 
     // send mirror timers
     _player->SendMirrorTimers(true);
+
+    if (!_player->IsStandState() && !_player->IsStunned())
+        _player->SetStandState(UNIT_STAND_STATE_STAND);
+
+    // Undo flags and states set by logout if present:
+    _player->SetStunnedByLogout(false);
 
     m_playerLoading = false;
 }

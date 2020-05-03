@@ -890,9 +890,10 @@ void Spell::AddUnitTarget(Unit* target, uint8 effectMask, CheckException excepti
     targetInfo.processed = false;                              // Effects not applied on target
     targetInfo.magnet = (exception == EXCEPTION_MAGNET);
     targetInfo.procReflect = false;
+    targetInfo.heartbeatResistChance = 0;
 
     // Calculate hit result
-    targetInfo.missCondition = m_ignoreHitResult ? SPELL_MISS_NONE : m_caster->SpellHitResult(target, m_spellInfo, targetInfo.effectMask, m_reflectable);
+    targetInfo.missCondition = (m_ignoreHitResult ? SPELL_MISS_NONE : m_caster->SpellHitResult(target, m_spellInfo, targetInfo.effectMask, m_reflectable, &targetInfo.heartbeatResistChance));
 
     // spell fly from visual cast object
     WorldObject* affectiveObject = GetAffectiveCasterObject();
@@ -937,7 +938,7 @@ void Spell::AddUnitTarget(Unit* target, uint8 effectMask, CheckException excepti
         else
         {
             // Calculate reflected spell result on caster
-            targetInfo.reflectResult =  m_caster->SpellHitResult(m_caster, m_spellInfo, targetInfo.effectMask, m_reflectable);
+            targetInfo.reflectResult = m_caster->SpellHitResult(m_caster, m_spellInfo, targetInfo.effectMask, m_reflectable, &targetInfo.heartbeatResistChance);
             // Caster reflects back spell which was already reflected by victim
             if (targetInfo.reflectResult == SPELL_MISS_REFLECT)
                 // Full circle: it's impossible to reflect further, "Immune" shows up
@@ -1116,14 +1117,14 @@ void Spell::DoAllEffectOnTarget(TargetInfo* target)
     }
 
     if (missInfo == SPELL_MISS_NONE)                        // In case spell hit target, do all effect on that target
-        DoSpellHitOnUnit(unit, effectMask);
+        DoSpellHitOnUnit(unit, effectMask, target);
     else if (missInfo != SPELL_MISS_EVADE)
     {
         if (missInfo == SPELL_MISS_REFLECT)                // In case spell reflect from target, do all effect on caster (if hit)
         {
             if (target->reflectResult == SPELL_MISS_NONE)       // If reflected spell hit caster -> do all effect on him
             {
-                DoSpellHitOnUnit(m_caster, effectMask);
+                DoSpellHitOnUnit(m_caster, effectMask, target);
                 reflectTarget = unit;
                 unitTarget = m_caster;
             }
@@ -1275,7 +1276,7 @@ void Spell::DoAllEffectOnTarget(TargetInfo* target)
     }
 }
 
-void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
+void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask, TargetInfo* target)
 {
     if (!unit)
         return;
@@ -1321,11 +1322,11 @@ void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
         {
             // for delayed spells ignore not visible explicit target, if caster is dead, nothing is visible for him
             if (traveling && unit == m_targets.getUnitTarget() &&
-                !unit->IsVisibleForOrDetect(m_caster, m_caster, false, false, true, true) && m_caster->isAlive())
+                !unit->IsVisibleForOrDetect(m_caster, m_caster, false, false, true, true) && m_caster->IsAlive())
             {
                 // Workaround: do not send evade if caster/unit are dead to prevent combat log errors
                 // TODO: Visibility check clearly lackluster if we end up here like this, to be fixed later
-                if (unit->isAlive() && realCaster->isAlive())
+                if (unit->IsAlive() && realCaster->IsAlive())
                     realCaster->SendSpellMiss(unit, m_spellInfo->Id, SPELL_MISS_EVADE);
                 ResetEffectDamageAndHeal();
                 return;
@@ -1351,7 +1352,7 @@ void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
         // Increase Diminishing on unit, current informations for actually casts will use values above
         if ((GetDiminishingReturnsGroupType(m_diminishGroup) == DRTYPE_PLAYER && unit->GetTypeId() == TYPEID_PLAYER) ||
             GetDiminishingReturnsGroupType(m_diminishGroup) == DRTYPE_ALL)
-            unit->IncrDiminishing(m_diminishGroup);
+            unit->IncrDiminishing(m_diminishGroup, uint32(GetSpellDuration(m_spellInfo)), (unit->GetTypeId() == TYPEID_PLAYER && m_caster->GetTypeId() == TYPEID_PLAYER));
     }
 
     // Apply additional spell effects to target
@@ -1415,6 +1416,13 @@ void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
             {
                 m_spellAuraHolder->SetAuraMaxDuration(duration);
                 m_spellAuraHolder->SetAuraDuration(duration);
+            }
+
+            if (originalDuration > 0 && target && target->heartbeatResistChance && !m_spellAuraHolder->IsPositive())
+            {
+                // TBC+: do not set heartbeat in pvp
+                if (bool heartbeat = !(m_caster->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) && unit->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED)))
+                    m_spellAuraHolder->SetHeartbeatResist(target->heartbeatResistChance, originalDuration, uint32(m_diminishLevel));
             }
 
             if (!unit->AddSpellAuraHolder(m_spellAuraHolder))
@@ -1614,7 +1622,7 @@ bool Spell::IsAliveUnitPresentInTargetList()
 
 bool Spell::IsValidDeadOrAliveTarget(Unit const* target) const
 {
-    if (target->isAlive())
+    if (target->IsAlive())
         return !IsDeathOnlySpell(m_spellInfo);
     if (IsAllowingDeadTarget(m_spellInfo))
         return true;
@@ -2686,9 +2694,9 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, bool targ
             if (!m_caster->CanAssistSpell(unitTarget, m_spellInfo))
                 break;
 
-            if (targetingData.chainTargetCount[effIndex] <= 1)
-                tempUnitList.push_back(unitTarget);
-            else
+            tempUnitList.push_back(unitTarget);
+
+            if (targetingData.chainTargetCount[effIndex] > 1)
             {
                 float max_range = targetingData.chainTargetCount[effIndex] * CHAIN_SPELL_JUMP_RADIUS;
                 Group* group = nullptr;
@@ -2727,7 +2735,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, bool targ
 
                     }
                 }
-             
+
                 UnitList tempAoeList;
                 MaNGOS::AnyFriendlyOrGroupMemberUnitInUnitRangeCheck u_check(m_caster, group, m_spellInfo, max_range);
                 MaNGOS::UnitListSearcher<MaNGOS::AnyFriendlyOrGroupMemberUnitInUnitRangeCheck> searcher(tempAoeList, u_check);
@@ -2875,7 +2883,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, bool targ
                     {
                         if (target->GetTypeId() == TYPEID_UNIT && entriesToUse.find(type == SPELL_TARGET_TYPE_CREATURE_GUID ? target->GetGUIDLow() : target->GetEntry()) != entriesToUse.end())
                         {
-                            if ((type == SPELL_TARGET_TYPE_CREATURE && target->isAlive()) ||
+                            if ((type == SPELL_TARGET_TYPE_CREATURE && target->IsAlive()) ||
                                 (type == SPELL_TARGET_TYPE_DEAD && ((Creature*)target)->IsCorpse()))
                             {
                                 if (target->IsWithinDistInMap(caster, radius) && OnCheckTarget(target, effIndex))
@@ -3005,7 +3013,7 @@ void Spell::CheckSpellScriptTargets(SQLMultiStorage::SQLMSIteratorBounds<SpellTa
                             targetUnitMap.push_back(target);
                         break;
                     case SPELL_TARGET_TYPE_CREATURE:
-                        if (target->isAlive())
+                        if (target->IsAlive())
                             targetUnitMap.push_back(target);
                         break;
                     case SPELL_TARGET_TYPE_CREATURE_GUID:
@@ -3163,7 +3171,7 @@ void Spell::cancel()
                 if (ihit.missCondition == SPELL_MISS_NONE)
                 {
                     Unit* unit = m_caster->GetObjectGuid() == ihit.targetGUID ? m_caster : ObjectAccessor::GetUnit(*m_caster, ihit.targetGUID);
-                    if (unit && unit->isAlive())
+                    if (unit && unit->IsAlive())
                         unit->RemoveAurasByCasterSpell(m_spellInfo->Id, m_caster->GetObjectGuid());
 
                     // prevent other effects applying if spell is already interrupted
@@ -3658,7 +3666,7 @@ void Spell::_handle_finish_phase()
 
     if (m_caster->m_extraAttacks && IsSpellHaveEffect(m_spellInfo, SPELL_EFFECT_ADD_EXTRA_ATTACKS))
     {
-        if (Unit* target = m_caster->getVictim())
+        if (Unit* target = m_caster->GetVictim())
             m_caster->DoExtraAttacks(target);
         else
             m_caster->m_extraAttacks = 0;
@@ -4965,7 +4973,7 @@ SpellCastResult Spell::CheckCast(bool strict)
         return m_triggeredByAuraSpell ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_NOT_READY;
     }
 
-    if (!m_caster->isAlive() && m_caster->GetTypeId() == TYPEID_PLAYER && !m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_DEAD) && !m_spellInfo->HasAttribute(SPELL_ATTR_PASSIVE))
+    if (!m_caster->IsAlive() && m_caster->GetTypeId() == TYPEID_PLAYER && !m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_DEAD) && !m_spellInfo->HasAttribute(SPELL_ATTR_PASSIVE))
         return SPELL_FAILED_CASTER_DEAD;
 
     if (!m_IsTriggeredSpell && !m_caster->IsStandState() && m_caster->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) && !m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_SITTING))
@@ -4981,7 +4989,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             if (bg->GetStatus() == STATUS_WAIT_LEAVE)
                 return SPELL_FAILED_DONT_REPORT;
 
-    if (!m_IsTriggeredSpell && IsNonCombatSpell(m_spellInfo) && m_caster->isInCombat() && !m_caster->IsIgnoreUnitState(m_spellInfo, IGNORE_UNIT_COMBAT_STATE))
+    if (!m_IsTriggeredSpell && IsNonCombatSpell(m_spellInfo) && m_caster->IsInCombat() && !m_caster->IsIgnoreUnitState(m_spellInfo, IGNORE_UNIT_COMBAT_STATE))
         return SPELL_FAILED_AFFECTING_COMBAT;
 
     if (m_caster->GetTypeId() == TYPEID_PLAYER && !((Player*)m_caster)->isGameMaster() &&
@@ -5054,7 +5062,7 @@ SpellCastResult Spell::CheckCast(bool strict)
     }
 
     // Spells like Disengage are allowed only in combat
-    if (!m_caster->isInCombat() && m_spellInfo->HasAttribute(SPELL_ATTR_STOP_ATTACK_TARGET) && m_spellInfo->HasAttribute(SPELL_ATTR_EX2_UNK26))
+    if (!m_caster->IsInCombat() && m_spellInfo->HasAttribute(SPELL_ATTR_STOP_ATTACK_TARGET) && m_spellInfo->HasAttribute(SPELL_ATTR_EX2_UNK26))
         return SPELL_FAILED_CASTER_AURASTATE;
 
     // Nefarian class calls spell failed
@@ -5089,7 +5097,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             if (m_spellInfo->TargetAuraStateNot && target->HasAuraState(AuraState(m_spellInfo->TargetAuraStateNot)))
                 return SPELL_FAILED_TARGET_AURASTATE;
 
-            if (!m_IsTriggeredSpell && IsDeathOnlySpell(m_spellInfo) && target->isAlive())
+            if (!m_IsTriggeredSpell && IsDeathOnlySpell(m_spellInfo) && target->IsAlive())
                 return SPELL_FAILED_TARGET_NOT_DEAD;
 
             // Target aura req check if need
@@ -5237,7 +5245,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                 return SPELL_FAILED_NOT_INFRONT;
 
             // check if target is in combat
-            if (non_caster_target && m_spellInfo->HasAttribute(SPELL_ATTR_EX_NOT_IN_COMBAT_TARGET) && target->isInCombat())
+            if (non_caster_target && m_spellInfo->HasAttribute(SPELL_ATTR_EX_NOT_IN_COMBAT_TARGET) && target->IsInCombat())
                 return SPELL_FAILED_TARGET_AFFECTING_COMBAT;
 
             // check if target is affected by Spirit of Redemption (Aura: 27827)
@@ -5264,7 +5272,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     return SPELL_FAILED_NO_PET;
                 else
                 {
-                    if (!pet->isAlive())
+                    if (!pet->IsAlive())
                         return SPELL_FAILED_TARGETS_DEAD;
                     if (!IsIgnoreLosSpellEffect(m_spellInfo, SpellEffectIndex(i)) && !m_caster->IsWithinLOSInMap(pet))
                         return SPELL_FAILED_LINE_OF_SIGHT;
@@ -5377,7 +5385,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     Pet* target = m_caster->GetMap()->GetPet(((Player*)m_caster)->GetSelectionGuid());
 
                     // alive
-                    if (!target || target->isDead())
+                    if (!target || target->IsDead())
                         return SPELL_FAILED_BAD_IMPLICIT_TARGETS;
                     // undead
                     if (target->GetCreatureType() != CREATURE_TYPE_UNDEAD)
@@ -5480,7 +5488,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                         break;
 
                     for (auto& itr : targetsCombat)
-                        if (itr->isInCombat())
+                        if (itr->IsInCombat())
                             return SPELL_FAILED_TARGET_IN_COMBAT;
                 }
                 break;
@@ -5627,7 +5635,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                 if (!pet->GetCurrentFoodBenefitLevel(foodItem->GetProto()->ItemLevel))
                     return SPELL_FAILED_FOOD_LOWLEVEL;
 
-                if (pet->isInCombat())
+                if (pet->IsInCombat())
                     return SPELL_FAILED_AFFECTING_COMBAT;
 
                 break;
@@ -5680,7 +5688,7 @@ SpellCastResult Spell::CheckCast(bool strict)
 
                 Creature* creature = (Creature*)m_targets.getUnitTarget();
 
-                if (creature->isAlive())
+                if (creature->IsAlive())
                     return SPELL_FAILED_TARGET_NOT_DEAD;
 
                 if (creature->GetLootStatus() != CREATURE_LOOT_STATUS_LOOTED)// || creature->GetCreatureType() != CREATURE_TYPE_CRITTER)
@@ -5796,7 +5804,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     if (result != SPELL_FAILED_TARGETS_DEAD)
                         return SPELL_FAILED_UNKNOWN;
                 }
-                else if (pet->isAlive())
+                else if (pet->IsAlive())
                     return SPELL_FAILED_ALREADY_HAVE_SUMMON;
 
                 break;
@@ -5828,7 +5836,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                 {
                     if (Creature* pet = m_caster->GetPet())
                     {
-                        if (!pet->isAlive())
+                        if (!pet->IsAlive())
                         {
                             ((Player*)m_caster)->SendPetTameFailure(PETTAME_DEAD);
                             return SPELL_FAILED_DONT_REPORT;
@@ -6113,7 +6121,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             {
                 // not allow cast fly spells if not have req. skills  (all spells is self target)
                 // allow always ghost flight spells
-                if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->isAlive())
+                if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->IsAlive())
                 {
                     if (!((Player*)m_caster)->CanStartFlyInArea(m_caster->GetMapId(), zone, area))
                         return m_IsTriggeredSpell ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_NOT_HERE;
@@ -6233,12 +6241,12 @@ SpellCastResult Spell::CheckCast(bool strict)
 
 SpellCastResult Spell::CheckPetCast(Unit* target)
 {
-    if (!m_caster->isAlive())
+    if (!m_caster->IsAlive())
         return SPELL_FAILED_CASTER_DEAD;
 
     if (m_caster->IsNonMeleeSpellCasted(false) && !m_spellInfo->HasAttribute(SPELL_ATTR_EX4_CAN_CAST_WHILE_CASTING)) // prevent spellcast interruption by another spellcast
         return SPELL_FAILED_SPELL_IN_PROGRESS;
-    if (m_caster->isInCombat() && IsNonCombatSpell(m_spellInfo))
+    if (m_caster->IsInCombat() && IsNonCombatSpell(m_spellInfo))
         return SPELL_FAILED_AFFECTING_COMBAT;
 
     if (m_caster->GetTypeId() == TYPEID_UNIT && (((Creature*)m_caster)->IsPet() || m_caster->HasCharmer()))
@@ -6248,7 +6256,7 @@ SpellCastResult Spell::CheckPetCast(Unit* target)
         if (charmer)
         {
             Player* pCharmer = charmer->GetTypeId() == TYPEID_PLAYER ? static_cast<Player*>(charmer) : nullptr;
-            if (!charmer->isAlive() && (!pCharmer || !pCharmer->IsGhouled()))
+            if (!charmer->IsAlive() && (!pCharmer || !pCharmer->IsGhouled()))
                 return SPELL_FAILED_CASTER_DEAD;
         }
 
@@ -6287,6 +6295,9 @@ SpellCastResult Spell::CheckPetCast(Unit* target)
         // for target dead/target not valid
         if (_target && m_targets.m_targetMask & TARGET_FLAG_UNIT)
         {
+            if (_target->IsDead() && !m_spellInfo->HasAttribute(SPELL_ATTR_EX2_CAN_TARGET_DEAD))
+                return SPELL_FAILED_BAD_TARGETS;
+
             if (IsPositiveSpell(m_spellInfo->Id, m_caster, _target))
             {
                 if (!m_caster->CanAssistSpell(_target, m_spellInfo))
@@ -7444,10 +7455,10 @@ bool Spell::CheckTarget(Unit* target, SpellEffectIndex eff, bool targetB, CheckE
                 break;
         }
 
-        if (m_spellInfo->HasAttribute(SPELL_ATTR_EX3_CAST_ON_DEAD) && target->isAlive())
+        if (m_spellInfo->HasAttribute(SPELL_ATTR_EX3_CAST_ON_DEAD) && target->IsAlive())
             return false;
 
-        if (!IsAllowingDeadTarget(m_spellInfo) && !target->isAlive() && !(target == m_caster && m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_DEAD)) && m_caster->GetTypeId() == TYPEID_PLAYER)
+        if (!IsAllowingDeadTarget(m_spellInfo) && !target->IsAlive() && !(target == m_caster && m_spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_DEAD)) && m_caster->GetTypeId() == TYPEID_PLAYER)
             return false;
     }
 
@@ -7745,7 +7756,7 @@ void Spell::FillRaidOrPartyManaPriorityTargets(UnitList& targetUnitMap, Unit* me
 
     PrioritizeManaUnitQueue manaUsers;
     for (UnitList::const_iterator itr = targetUnitMap.begin(); itr != targetUnitMap.end(); ++itr)
-        if ((*itr)->GetPowerType() == POWER_MANA && !(*itr)->isDead())
+        if ((*itr)->GetPowerType() == POWER_MANA && !(*itr)->IsDead())
             manaUsers.push(PrioritizeManaUnitWraper(*itr));
 
     targetUnitMap.clear();
@@ -7762,7 +7773,7 @@ void Spell::FillRaidOrPartyHealthPriorityTargets(UnitList& targetUnitMap, Unit* 
 
     PrioritizeHealthUnitQueue healthQueue;
     for (UnitList::const_iterator itr = targetUnitMap.begin(); itr != targetUnitMap.end(); ++itr)
-        if (!(*itr)->isDead())
+        if (!(*itr)->IsDead())
             healthQueue.push(PrioritizeHealthUnitWraper(*itr));
 
     targetUnitMap.clear();
@@ -7828,7 +7839,7 @@ void Spell::ProcSpellAuraTriggers()
             if (ihit->missCondition == SPELL_MISS_NONE)
             {
                 Unit* target = m_caster->GetObjectGuid() == ihit->targetGUID ? m_caster : ObjectAccessor::GetUnit(*m_caster, ihit->targetGUID);
-                if (!target || !target->isAlive())
+                if (!target || !target->IsAlive())
                     continue;
                 SpellEntry const* auraSpellInfo = targetTrigger->GetSpellProto();
                 if (!CanExecuteTriggersOnHit(ihit->effectHitMask, auraSpellInfo))
@@ -8147,7 +8158,7 @@ void Spell::FilterTargetMap(UnitList& filterUnitList, SpellEffectIndex effIndex,
                 if (!prev->IsWithinDist(*next, m_jumpRadius))
                     break;
 
-                if (!prev->IsWithinLOSInMap(*next))
+                if (!prev->IsWithinLOSInMap(*next, true))
                 {
                     ++next;
                     continue;
@@ -8187,12 +8198,6 @@ void Spell::FilterTargetMap(UnitList& filterUnitList, SpellEffectIndex effIndex,
                 if (!prev->IsWithinLOSInMap(*next, true))
                 {
                     ++next;
-                    continue;
-                }
-
-                if ((*next)->GetHealth() == (*next)->GetMaxHealth())
-                {
-                    next = filterUnitList.erase(next);
                     continue;
                 }
 
@@ -8565,7 +8570,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
                 return false;
             break;
         case 29511:
-            if (target->GetTypeId() == TYPEID_PLAYER && target == m_caster->getVictim())
+            if (target->GetTypeId() == TYPEID_PLAYER && target == m_caster->GetVictim())
                 return false;
             break;
         case 30469:                                         // Nether Beam - Netherspite - special include only players and boss
@@ -8586,7 +8591,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
                         return false;
                     break;
             }
-            if (!target->isAlive())
+            if (!target->IsAlive())
                 return false;
             break;
         case 30835:                                         // Infernal Relay - Malchezaar - must only hit unused infernals
@@ -8613,7 +8618,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
                 return false;
             break;
         case 36819:                                         // Always should hit main tank, no clue why rigged as AOE
-            if (m_caster->getVictim() && target != m_caster->getVictim())
+            if (m_caster->GetVictim() && target != m_caster->GetVictim())
                 return false;
             break;
         case 37144:                                         // Move - Chess event
@@ -8659,7 +8664,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
                 return false;
             break;
         case 39095:                                         // Amplify Damage - weird logic confirmed on retail
-            if (m_caster->getThreatManager().getThreatList().size() >= 2 && target == m_caster->getVictim())
+            if (m_caster->getThreatManager().getThreatList().size() >= 2 && target == m_caster->GetVictim())
                 return false;
             break;
         case 39365:                                         // Thundering Storm - only hits 25-100yd range targets
@@ -8727,7 +8732,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
             return false;
         }
         case 38028:                             // Watery Grave
-            if (!target->isAlive())
+            if (!target->IsAlive())
                 return false;
             // no break
         case 30769:                             // Pick Red Riding Hood
@@ -8744,7 +8749,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
         case 71224:                             // Mutated Infection (25n)
         case 73022:                             // Mutated Infection (10h)
         case 73023:                             // Mutated Infection (25h)
-            if (m_caster->getVictim() == target)
+            if (m_caster->GetVictim() == target)
                 return false;
             break;
         case 40175:                             // Spirit Chains - Teron Gorefiend
@@ -8785,7 +8790,7 @@ bool Spell::OnCheckTarget(Unit* target, SpellEffectIndex eff) const
                 return false;
             break;
         case 37676:                             // Insidious Whisper
-            if (m_caster->getVictim() == target) // skips tank
+            if (m_caster->GetVictim() == target) // skips tank
                 return false;
 
             if (!target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED)) // not MCed

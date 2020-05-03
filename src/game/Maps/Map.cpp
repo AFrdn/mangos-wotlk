@@ -116,7 +116,7 @@ void Map::Initialize(bool loadInstanceData /*= true*/)
     }
 
     // lets initialize visibility distance for map
-    Map::InitVisibilityDistance();
+    InitVisibilityDistance();
 
     // add reference for TerrainData object
     m_TerrainData->AddRef();
@@ -1420,9 +1420,6 @@ DungeonMap::DungeonMap(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnM
 {
     MANGOS_ASSERT(i_mapEntry->IsDungeon());
 
-    // lets initialize visibility distance for dungeons
-    DungeonMap::InitVisibilityDistance();
-
     // the timer is started by default, and stopped when the first player joins
     // this make sure it gets unloaded if for some reason no player joins
     m_unloadTimer = std::max(sWorld.getConfig(CONFIG_UINT32_INSTANCE_UNLOAD_DELAY), (uint32)MIN_UNLOAD_DELAY);
@@ -1693,8 +1690,6 @@ DungeonPersistentState* DungeonMap::GetPersistanceState() const
 BattleGroundMap::BattleGroundMap(uint32 id, time_t expiry, uint32 InstanceId, uint8 spawnMode)
     : Map(id, expiry, InstanceId, spawnMode)
 {
-    // lets initialize visibility distance for BG/Arenas
-    BattleGroundMap::InitVisibilityDistance();
 }
 
 BattleGroundMap::~BattleGroundMap()
@@ -1779,8 +1774,8 @@ bool Map::ScriptsStart(ScriptMapMapName const& scripts, uint32 id, Object* sourc
     MANGOS_ASSERT(source);
 
     ///- Find the script map
-    ScriptMapMap::const_iterator s = scripts.second.find(id);
-    if (s == scripts.second.end())
+    ScriptMapMap::const_iterator scriptInfoMapMapItr = scripts.second.find(id);
+    if (scriptInfoMapMapItr == scripts.second.end())
         return false;
 
     // prepare static data
@@ -1803,13 +1798,30 @@ bool Map::ScriptsStart(ScriptMapMapName const& scripts, uint32 id, Object* sourc
     }
 
     ///- Schedule script execution for all scripts in the script map
-    ScriptMap const* s2 = &(s->second);
-    for (const auto& iter : *s2)
+    ScriptMap const& scriptMap = scriptInfoMapMapItr->second;
+
+    // first handle all scripts with 0 delay
+    auto scriptInfoItr = scriptMap.begin();
+    while (scriptInfoItr != scriptMap.end())
     {
-        ScriptAction sa(scripts.first, this, sourceGuid, targetGuid, ownerGuid, &iter.second);
+        auto const& scriptInfo = scriptInfoItr->second;
+        if (scriptInfo.delay > 0)
+            break;
 
-        m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(iter.first), sa);
+        // fire script with 0 delay directly
+        ScriptAction sa(scripts.first, this, sourceGuid, targetGuid, ownerGuid, &scriptInfo);
+        if (sa.HandleScriptStep())
+            return true;                    // script failed we should not continue further (command 31 or any error occured)
 
+        ++scriptInfoItr;
+    }
+
+    // add delayed script to script scheduler
+    for (; scriptInfoItr != scriptMap.end(); ++scriptInfoItr)
+    {
+        auto const& scriptInfo = scriptInfoItr->second;
+        ScriptAction sa(scripts.first, this, sourceGuid, targetGuid, ownerGuid, &scriptInfo);
+        m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(scriptInfoItr->first), sa);
         sScriptMgr.IncreaseScheduledScriptsCount();
     }
 
@@ -1827,9 +1839,13 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
 
     ScriptAction sa("Internal Activate Command used for spell", this, sourceGuid, targetGuid, ownerGuid, &script);
 
-    m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(delay), sa);
-
-    sScriptMgr.IncreaseScheduledScriptsCount();
+    if (delay)
+    {
+        m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(delay), sa);
+        sScriptMgr.IncreaseScheduledScriptsCount();
+    }
+    else
+        sa.HandleScriptStep();
 }
 
 /// Process queued scripts

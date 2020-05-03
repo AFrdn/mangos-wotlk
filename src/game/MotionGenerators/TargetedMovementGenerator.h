@@ -192,15 +192,6 @@ class FollowMovementGenerator : public TargetedMovementGeneratorMedium<Unit, Fol
         virtual bool IsRemovedOnDirectExpire() const override { return !m_main; }
 
     protected:
-        virtual float GetAngle(Unit& owner) const;
-        virtual float GetOffset(Unit& owner) const;
-        virtual float GetSpeed(Unit& owner, bool boosted = false) const;
-
-        virtual bool IsBoostAllowed(Unit& owner) const;
-        virtual bool IsUnstuckAllowed(Unit& owner) const;
-
-        virtual bool Move(Unit& owner, float x, float y, float z, bool catchup);
-
         float GetDynamicTargetDistance(Unit& owner, bool forRangeCheck) const override;
         void HandleTargetedMovement(Unit& owner, const uint32& time_diff) override;
         void HandleFinalizedMovement(Unit& owner) override;
@@ -209,11 +200,23 @@ class FollowMovementGenerator : public TargetedMovementGeneratorMedium<Unit, Fol
         void _clearUnitStateMove(Unit& owner) override;
         void _addUnitStateMove(Unit& owner) override;
 
+        virtual float GetSpeed(Unit& owner) const;
+
+        virtual bool IsBoostAllowed(Unit& owner) const;
+        virtual bool IsUnstuckAllowed(Unit& owner) const;
+
+        virtual bool Move(Unit& owner, float x, float y, float z);
+
     private:
         virtual bool _getOrientation(Unit& owner, float& o) const;
-        virtual bool _getLocation(Unit& owner, float& x, float& y, float& z) const;
+        virtual bool _getLocation(Unit& owner, float& x, float& y, float& z, bool movingNow) const;
         virtual void _setOrientation(Unit& owner);
-        virtual void _setLocation(Unit& owner, bool catchup);
+        virtual void _setLocation(Unit& owner, bool movingNow);
+
+        static inline uint32 _getPollRateBase() { return 250; }
+        static inline uint32 _getPollRateMax() { return 1000; }
+        virtual uint32 _getPollRateMultiplier(Unit& owner, bool targetMovingNow, bool targetMovedBefore = true) const;
+        virtual uint32 _getPollRate(Unit& owner, bool movingNow, bool movingBefore = true) const;
 
         bool m_main;
         bool m_targetMoving;

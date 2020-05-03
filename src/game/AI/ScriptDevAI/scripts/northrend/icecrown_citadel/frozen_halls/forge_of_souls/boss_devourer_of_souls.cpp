@@ -205,7 +205,7 @@ struct boss_devourer_of_soulsAI : public ScriptedAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->isInCombat())
+        if (!m_creature->IsInCombat())
             return;
 
         // Ending a phase
@@ -237,7 +237,7 @@ struct boss_devourer_of_soulsAI : public ScriptedAI
         }
 
         // Update Target and do Combat Spells
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         // No additional abilities while unleashing

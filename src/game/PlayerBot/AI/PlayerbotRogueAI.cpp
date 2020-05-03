@@ -175,7 +175,7 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuver(Unit* pTarget)
     if (!m_ai)    return RETURN_NO_ACTION_ERROR;
     if (!m_bot)   return RETURN_NO_ACTION_ERROR;
 
-    Unit* pVictim = pTarget->getVictim();
+    Unit* pVictim = pTarget->GetVictim();
     bool meleeReach = m_bot->CanReachWithMeleeAttack(pTarget);
 
     // TODO: make this work better...
@@ -195,7 +195,7 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuver(Unit* pTarget)
        }*/
 
     // Rogue like behaviour ^^
-    /*if (VANISH > 0 && GetMaster()->isDead()) { //Causes the server to crash :( removed for now.
+    /*if (VANISH > 0 && GetMaster()->IsDead()) { //Causes the server to crash :( removed for now.
         m_bot->AttackStop();
         m_bot->RemoveAllAttackers();
         m_ai->CastSpell(VANISH);
@@ -260,9 +260,8 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuver(Unit* pTarget)
             break;
 
         case RogueSpellPreventing:
-            if (KIDNEY_SHOT > 0 && m_bot->GetComboPoints() >= 2 && m_ai->CastSpell(KIDNEY_SHOT, *pTarget) == SPELL_CAST_OK)
-                return RETURN_CONTINUE;
-            else if (KICK > 0 && m_ai->CastSpell(KICK, *pTarget) == SPELL_CAST_OK)
+            if ((KIDNEY_SHOT > 0 && m_bot->GetComboPoints() >= 2 && m_ai->CastSpell(KIDNEY_SHOT, *pTarget) == SPELL_CAST_OK) ||
+                (KICK > 0 && m_ai->CastSpell(KICK, *pTarget) == SPELL_CAST_OK))
                 return RETURN_CONTINUE;
         // break; // No action? Go combat!
 
@@ -294,7 +293,7 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuver(Unit* pTarget)
 						// If target is a warrior or paladin type (high armor): expose its armor unless already tanked by a warrior (Sunder Armor > Expose Armor)
 						if (m_ai->IsElite(pTarget) && pCreature && pCreature->GetCreatureInfo()->UnitClass != 8)
 						{
-							if  (!m_ai->GetGroupTank() || (m_ai->GetGroupTank() && m_ai->GetGroupTank()->getVictim() != pTarget))
+							if  (!m_ai->GetGroupTank() || (m_ai->GetGroupTank() && m_ai->GetGroupTank()->GetVictim() != pTarget))
 							{
 								if (EXPOSE_ARMOR > 0 && !pTarget->HasAura(EXPOSE_ARMOR, EFFECT_INDEX_0) && m_ai->CastSpell(EXPOSE_ARMOR, *pTarget) == SPELL_CAST_OK) // 25 energy (checked above)
 									return RETURN_CONTINUE;
@@ -355,7 +354,7 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuver(Unit* pTarget)
                 return RETURN_CONTINUE;
             if (m_bot->getRace() == RACE_DWARF && m_bot->HasAuraState(AURA_STATE_DEADLY_POISON) && m_ai->CastSpell(STONEFORM, *m_bot) == SPELL_CAST_OK)
                 return RETURN_CONTINUE;
-            if (m_bot->getRace() == RACE_GNOME && (m_bot->hasUnitState(UNIT_STAT_STUNNED) || m_bot->HasAuraType(SPELL_AURA_MOD_DECREASE_SPEED)) && m_ai->CastSpell(ESCAPE_ARTIST, *m_bot) == SPELL_CAST_OK)
+            if (m_bot->getRace() == RACE_GNOME && (m_bot->hasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_ROOT) || m_bot->HasAuraType(SPELL_AURA_MOD_DECREASE_SPEED)) && m_ai->CastSpell(ESCAPE_ARTIST, *m_bot) == SPELL_CAST_OK)
                 return RETURN_CONTINUE;
             else if (m_bot->getRace() == RACE_ORC && !m_bot->HasAura(BLOOD_FURY, EFFECT_INDEX_0) && m_ai->CastSpell(BLOOD_FURY, *m_bot) == SPELL_CAST_OK)
                 return RETURN_CONTINUE;

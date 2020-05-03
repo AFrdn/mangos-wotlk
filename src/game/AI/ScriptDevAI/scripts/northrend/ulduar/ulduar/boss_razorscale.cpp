@@ -352,12 +352,12 @@ struct boss_razorscaleAI : public ScriptedAI
     bool SelectCustomHostileTarget()
     {
         if (m_uiPhase == PHASE_ONLY_GROUND || m_uiPhase == PHASE_GROUNDED)
-            return m_creature->SelectHostileTarget() && m_creature->getVictim();
+            return m_creature->SelectHostileTarget() && m_creature->GetVictim();
 
         // Special handling for PHASE_AIR
 
         // Not started combat or evading prevented
-        if (!m_creature->isInCombat() || m_creature->HasAuraType(SPELL_AURA_MOD_TAUNT))
+        if (!m_creature->IsInCombat() || m_creature->HasAuraType(SPELL_AURA_MOD_TAUNT))
             return false;
 
         // Check if there are still enemies (players)
@@ -538,7 +538,7 @@ struct boss_razorscaleAI : public ScriptedAI
                             {
                                 SetCombatMovement(true);
                                 DoResetThreat();
-                                DoStartMovement(m_creature->getVictim());
+                                DoStartMovement(m_creature->GetVictim());
                                 m_uiPhase = PHASE_ONLY_GROUND;
                             }
                             // resume air phase
@@ -609,7 +609,7 @@ struct boss_razorscaleAI : public ScriptedAI
 
                 if (m_uiFuseArmorTimer < uiDiff)
                 {
-                    if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_FUSE_ARMOR) == CAST_OK)
+                    if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_FUSE_ARMOR) == CAST_OK)
                         m_uiFuseArmorTimer = 13000;
                 }
                 else

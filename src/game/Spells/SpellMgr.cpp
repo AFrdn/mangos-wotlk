@@ -464,6 +464,10 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
             if (spellInfo->SpellFamilyFlags & uint64(0x12040000))
                 return SPELL_MAGE_ARMOR;
 
+            // Arcane Power (using id instead of mask):
+            if (spellInfo->Id == 12042)
+                return SPELL_BUFF_CASTER_POWER;
+
             break;
         }
         case SPELLFAMILY_WARRIOR:
@@ -498,6 +502,10 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
         }
         case SPELLFAMILY_PRIEST:
         {
+            // Power Infusion:
+            if (spellInfo->Id == 10060)
+                return SPELL_BUFF_CASTER_POWER;
+
             // "Well Fed" buff from Blessed Sunfruit, Blessed Sunfruit Juice, Alterac Spring Water
             if (spellInfo->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_SITTING) &&
                     (spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_INTERRUPT) &&
@@ -1822,6 +1830,11 @@ bool SpellMgr::IsNoStackSpellDueToSpell(SpellEntry const* spellInfo_1, SpellEntr
                     // Female Shadowy Disguise
                     if ((spellInfo_1->Id == 32756 && spellInfo_2->Id == 38081) ||
                             (spellInfo_2->Id == 32756 && spellInfo_1->Id == 38081))
+                        return false;
+
+                    // See Icemist Invisibility and Agmar Invisibility
+                    if ((spellInfo_1->Id == 47396 && spellInfo_2->Id == 47418) ||
+                            (spellInfo_2->Id == 47418 && spellInfo_1->Id == 47396))
                         return false;
 
                     // Cool Down (See PeriodicAuraTick())
@@ -3774,7 +3787,7 @@ void SpellMgr::LoadSpellAreas()
             continue;
         }
 
-        if (spellArea.conditionId && !sConditionStorage.LookupEntry<PlayerCondition>(spellArea.conditionId))
+        if (spellArea.conditionId && !sConditionStorage.LookupEntry<ConditionEntry>(spellArea.conditionId))
         {
             sLog.outErrorDb("Spell %u listed in `spell_area` have wrong conditionId (%u) requirement", spell, spellArea.conditionId);
             continue;
@@ -4518,6 +4531,15 @@ bool IsDiminishingReturnsGroupDurationLimited(DiminishingGroup group)
     }
 }
 
+bool IsDiminishingReturnsGroupDurationDiminished(DiminishingGroup group, bool pvp)
+{
+    switch (group)
+    {
+        default:
+            return true;
+    }
+}
+
 DiminishingReturnsType GetDiminishingReturnsGroupType(DiminishingGroup group)
 {
     switch (group)
@@ -4559,7 +4581,7 @@ bool SpellArea::IsFitToRequirements(Player const* player, uint32 newZone, uint32
 {
     if (conditionId)
     {
-        if (!player || !sObjectMgr.IsPlayerMeetToCondition(conditionId, player, player->GetMap(), nullptr, CONDITION_FROM_SPELL_AREA))
+        if (!player || !sObjectMgr.IsConditionSatisfied(conditionId, player, player->GetMap(), nullptr, CONDITION_FROM_SPELL_AREA))
             return false;
     }
     else                                                    // This block will be removed

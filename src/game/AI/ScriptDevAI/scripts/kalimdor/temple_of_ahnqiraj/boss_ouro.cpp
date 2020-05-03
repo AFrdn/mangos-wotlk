@@ -136,7 +136,7 @@ struct boss_ouroAI : public CombatAI
         CombatAI::JustRespawned();
         m_creature->CastSpell(nullptr, SPELL_SUMMON_BASE, TRIGGERED_OLD_TRIGGERED);
         m_creature->SetInCombatWithZone();
-        if (!m_creature->isInCombat()) // noone left alive
+        if (!m_creature->IsInCombat()) // noone left alive
             JustReachedHome(); // handles fail
     }
 
@@ -210,8 +210,8 @@ struct boss_ouroAI : public CombatAI
         SetMeleeEnabled(true);
         SetCombatScriptStatus(false);
         AttackClosestEnemy();
-        if (m_creature->getVictim())
-            DoCastSpellIfCan(m_creature->getVictim(), SPELL_GROUND_RUPTURE);
+        if (m_creature->GetVictim())
+            DoCastSpellIfCan(m_creature->GetVictim(), SPELL_GROUND_RUPTURE);
     }
 
     void ExecuteAction(uint32 action) override
@@ -274,7 +274,7 @@ struct boss_ouroAI : public CombatAI
             case OURO_BOULDER:
             {
                 uint32 timer = 500;
-                if (m_creature->getVictim() && m_creature->CanReachWithMeleeAttack(m_creature->getVictim()))
+                if (m_creature->GetVictim() && m_creature->CanReachWithMeleeAttack(m_creature->GetVictim()))
                     m_rangeCheckState = -1;
                 else
                 {
@@ -289,7 +289,7 @@ struct boss_ouroAI : public CombatAI
             }
             case OURO_NO_MELEE_BURROW:
             {
-                if (m_creature->getVictim() && m_creature->CanReachWithMeleeAttack(m_creature->getVictim()))
+                if (m_creature->GetVictim() && m_creature->CanReachWithMeleeAttack(m_creature->GetVictim()))
                     m_burrowCounter = 0;
                 else
                 {

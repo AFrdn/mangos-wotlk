@@ -80,8 +80,8 @@ void world_map_ebon_hold::OnCreatureDeath(Creature* pCreature)
             {
                 // the new summoned mob should attack
                 Creature* pDarion = GetSingleCreatureFromStorage(NPC_HIGHLORD_DARION_MOGRAINE);
-                if (pDarion && pDarion->getVictim())
-                    pTemp->AI()->AttackStart(pDarion->getVictim());
+                if (pDarion && pDarion->GetVictim())
+                    pTemp->AI()->AttackStart(pDarion->GetVictim());
             }
             pCreature->ForcedDespawn(1000);
             break;
@@ -102,7 +102,7 @@ void world_map_ebon_hold::OnCreatureEvade(Creature* pCreature)
         case NPC_WARRIOR_OF_THE_FROZEN_WASTES:
             if (Creature* pDarion = GetSingleCreatureFromStorage(NPC_HIGHLORD_DARION_MOGRAINE))
             {
-                if (!pDarion->isInCombat())
+                if (!pDarion->IsInCombat())
                     return;
 
                 if (Unit* pTarget = pDarion->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0))
@@ -248,7 +248,7 @@ void world_map_ebon_hold::DoDespawnArmy()
     {
         if (Creature* pTemp = instance->GetCreature(*itr))
         {
-            if (pTemp->isAlive())
+            if (pTemp->IsAlive())
                 pTemp->Suicide();
         }
     }

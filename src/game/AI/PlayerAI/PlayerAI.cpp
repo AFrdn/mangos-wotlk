@@ -42,7 +42,7 @@ uint32 PlayerAI::LookupHighestLearnedRank(uint32 spellId)
 
 void PlayerAI::AddPlayerSpellAction(uint32 priority, uint32 spellId, std::function<Unit*()> selector)
 {
-    m_playerSpellActions[priority] = { spellId, selector ? selector : [&]()->Unit* { return m_player->getVictim(); } };
+    m_playerSpellActions[priority] = { spellId, selector ? selector : [&]()->Unit* { return m_player->GetVictim(); } };
 }
 
 void PlayerAI::ExecuteSpells()
@@ -58,10 +58,17 @@ void PlayerAI::JustGotCharmed(Unit* charmer)
     AttackClosestEnemy();
 }
 
+void PlayerAI::EnterEvadeMode()
+{
+    m_player->CombatStopWithPets(true);
+    if (Unit* charmer = m_player->GetCharmer())
+        m_player->GetMotionMaster()->MoveFollow(charmer, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE, true);
+}
+
 void PlayerAI::UpdateAI(const uint32 diff)
 {
     // Check if we have a current target
-    if (!m_player->SelectHostileTarget() || !m_player->getVictim())
+    if (!m_player->SelectHostileTarget() || !m_player->GetVictim())
         return;
 
     ExecuteSpells();

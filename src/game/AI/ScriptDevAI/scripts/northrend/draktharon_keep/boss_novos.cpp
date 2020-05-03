@@ -277,7 +277,7 @@ struct boss_novosAI : public Scripted_NoMovementAI
                 break;
 
             case PHASE_NORMAL:                              // Normal Phase, attack enemies
-                if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+                if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
                     return;
 
                 if (m_uiArcaneBlastTimer < uiDiff)
@@ -357,7 +357,7 @@ struct npc_crystal_channel_targetAI : public ScriptedAI
         if (uiPointId != 1 || uiMotionType != POINT_MOTION_TYPE || (pSummoned->GetEntry() != NPC_HULKING_CORPSE && pSummoned->GetEntry() != NPC_FETID_TROLL_CORPSE && pSummoned->GetEntry() != NPC_RISON_SHADOWCASTER))
             return;
 
-        if (!pSummoned->isInCombat() && m_pInstance)
+        if (!pSummoned->IsInCombat() && m_pInstance)
         {
             if (Creature* pNovos = m_pInstance->GetSingleCreatureFromStorage(NPC_NOVOS))
             {

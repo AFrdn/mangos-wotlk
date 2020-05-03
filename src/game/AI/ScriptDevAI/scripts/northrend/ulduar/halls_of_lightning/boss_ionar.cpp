@@ -100,7 +100,7 @@ struct boss_ionarAI : public ScriptedAI
 
     void AttackedBy(Unit* pAttacker) override
     {
-        if (m_creature->getVictim())
+        if (m_creature->GetVictim())
             return;
 
         if (m_creature->GetVisibility() == VISIBILITY_OFF)
@@ -163,7 +163,7 @@ struct boss_ionarAI : public ScriptedAI
         {
             if (Creature* pTemp = m_creature->GetMap()->GetCreature(*itr))
             {
-                if (pTemp->isAlive())
+                if (pTemp->IsAlive())
                     pTemp->ForcedDespawn();
             }
         }
@@ -178,7 +178,7 @@ struct boss_ionarAI : public ScriptedAI
         {
             if (Creature* pSpark = m_creature->GetMap()->GetCreature(*itr))
             {
-                if (pSpark->isAlive())
+                if (pSpark->IsAlive())
                 {
                     // Required to prevent combat movement, elsewise they might switch movement on aggro-change
                     if (ScriptedAI* pSparkAI = dynamic_cast<ScriptedAI*>(pSpark->AI()))
@@ -210,7 +210,7 @@ struct boss_ionarAI : public ScriptedAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         // Splitted
@@ -239,8 +239,8 @@ struct boss_ionarAI : public ScriptedAI
 
                     if (m_creature->GetMotionMaster()->GetCurrentMovementGeneratorType() != CHASE_MOTION_TYPE)
                     {
-                        if (m_creature->getVictim())
-                            m_creature->GetMotionMaster()->MoveChase(m_creature->getVictim());
+                        if (m_creature->GetVictim())
+                            m_creature->GetMotionMaster()->MoveChase(m_creature->GetVictim());
                     }
                 }
             }
@@ -351,7 +351,7 @@ struct mob_spark_of_ionarAI : public ScriptedAI
         {
             if (Creature* pIonar = m_pInstance->GetSingleCreatureFromStorage(NPC_IONAR))
             {
-                if (!pIonar->isAlive())
+                if (!pIonar->IsAlive())
                 {
                     m_creature->ForcedDespawn();
                     return;

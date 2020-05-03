@@ -50,7 +50,7 @@ bool AreaTrigger_at_frostmourne_chamber(Player* pPlayer, AreaTriggerEntry const*
 {
     if (pAt->id == AREATRIGGER_FROSTMOURNE_ALTAR)
     {
-        if (pPlayer->isGameMaster() || !pPlayer->isAlive())
+        if (pPlayer->isGameMaster() || !pPlayer->IsAlive())
             return false;
 
         instance_halls_of_reflection* pInstance = (instance_halls_of_reflection*)pPlayer->GetInstanceData();
@@ -153,12 +153,12 @@ struct npc_phantom_mageAI : public ScriptedAI
 
     void JustSummoned(Creature* pSummoned) override
     {
-        pSummoned->AI()->AttackStart(m_creature->getVictim());
+        pSummoned->AI()->AttackStart(m_creature->GetVictim());
     }
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiHallucinationTimer)
@@ -205,7 +205,7 @@ struct npc_phantom_mageAI : public ScriptedAI
 
         if (m_uiFireballTimer < uiDiff)
         {
-            if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_FIREBALL) == CAST_OK)
+            if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_FIREBALL) == CAST_OK)
                 m_uiFireballTimer = urand(4000, 8000);
         }
         else
@@ -213,7 +213,7 @@ struct npc_phantom_mageAI : public ScriptedAI
 
         if (m_uiFrostboltTimer < uiDiff)
         {
-            if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_FROSTBOLT) == CAST_OK)
+            if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_FROSTBOLT) == CAST_OK)
                 m_uiFrostboltTimer = urand(3000, 6000);
         }
         else
@@ -244,7 +244,7 @@ bool AreaTrigger_at_frostworn_general(Player* pPlayer, AreaTriggerEntry const* p
 {
     if (pAt->id == AREATRIGGER_FROSTWORN_GENERAL)
     {
-        if (pPlayer->isGameMaster() || !pPlayer->isAlive())
+        if (pPlayer->isGameMaster() || !pPlayer->IsAlive())
             return false;
 
         instance_halls_of_reflection* pInstance = (instance_halls_of_reflection*)pPlayer->GetInstanceData();
@@ -363,7 +363,7 @@ bool AreaTrigger_at_queldelar_start(Player* pPlayer, AreaTriggerEntry const* pAt
 {
     if (pAt->id == AREATRIGGER_QUELDELAR_START)
     {
-        if (pPlayer->isGameMaster() || !pPlayer->isAlive())
+        if (pPlayer->isGameMaster() || !pPlayer->IsAlive())
             return false;
 
         if (!pPlayer->HasAura(SPELL_QUELDELAR_COMPULSION))

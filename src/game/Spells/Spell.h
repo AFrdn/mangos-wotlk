@@ -442,7 +442,6 @@ class Spell
         void EffectActivateSpec(SpellEffectIndex eff_idx);
         void EffectCancelAura(SpellEffectIndex eff_idx);
         void EffectKnockBackFromPosition(SpellEffectIndex eff_idx);
-        void EffectGravityPull(SpellEffectIndex eff_idx);
         void EffectCreateTamedPet(SpellEffectIndex eff_ifx);
 
         Spell(Unit* caster, SpellEntry const* info, uint32 triggeredFlags, ObjectGuid originalCasterGUID = ObjectGuid(), SpellEntry const* triggeredBy = nullptr);
@@ -791,6 +790,7 @@ class Spell
             bool   processed: 1;
             bool   magnet: 1;
             bool   procReflect : 1; // Used to tell hit to proc reflect only and return reflect back
+            uint32 heartbeatResistChance;
         };
         uint8 m_needAliveTargetMask;                        // Mask req. alive targets
         void ProcReflectProcs(TargetInfo& targetInfo);
@@ -835,7 +835,7 @@ class Spell
         void HandleDelayedSpellLaunch(TargetInfo* target);
         void InitializeDamageMultipliers();
         void ResetEffectDamageAndHeal();
-        void DoSpellHitOnUnit(Unit* unit, uint32 effectMask);
+        void DoSpellHitOnUnit(Unit* unit, uint32 effectMask, TargetInfo* target);
         void DoAllTargetlessEffects(bool dest);
         void DoAllEffectOnTarget(GOTargetInfo* target);
         void DoAllEffectOnTarget(ItemTargetInfo* target);
@@ -909,7 +909,7 @@ namespace MaNGOS
             for (auto& itr : m)
             {
                 Player* pPlayer = itr.getSource();
-                if (!pPlayer->isAlive() || pPlayer->IsTaxiFlying())
+                if (!pPlayer->IsAlive() || pPlayer->IsTaxiFlying())
                     continue;
 
                 if (!i_originalCaster->CanAttackSpell(pPlayer, i_spell.m_spellInfo))

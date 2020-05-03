@@ -3452,7 +3452,7 @@ bool ChatHandler::HandleDieCommand(char* args)
     ExtractOptUInt32(&args, param, 0);
     if (param != 0)
     {
-        if (target->isAlive())
+        if (target->IsAlive())
         {
             DamageEffectType damageType = DIRECT_DAMAGE;
             uint32 absorb = 0;
@@ -3463,7 +3463,7 @@ bool ChatHandler::HandleDieCommand(char* args)
     }
     else
     {
-        if (target->isAlive())
+        if (target->IsAlive())
         {
             Unit::DealDamage(player, target, target->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
         }
@@ -3487,7 +3487,7 @@ bool ChatHandler::HandleDamageCommand(char* args)
         return false;
     }
 
-    if (!target->isAlive())
+    if (!target->IsAlive())
         return true;
 
     int32 damage_int;
@@ -3710,7 +3710,7 @@ bool ChatHandler::HandleLinkGraveCommand(char* args)
         return false;
     }
 
-    if (sObjectMgr.AddGraveYardLink(g_id, zoneId, g_team))
+    if (sObjectMgr.AddGraveYardLink(g_id, zoneId, GRAVEYARD_AREALINK, g_team))
         PSendSysMessage(LANG_COMMAND_GRAVEYARDLINKED, g_id, zoneId);
     else
         PSendSysMessage(LANG_COMMAND_GRAVEYARDALRLINKED, g_id, zoneId);
@@ -3735,6 +3735,7 @@ bool ChatHandler::HandleNearGraveCommand(char* args)
 
     Player* player = m_session->GetPlayer();
     uint32 zone_id = player->GetZoneId();
+    uint32 area_id = player->GetAreaId();
 
     WorldSafeLocsEntry const* graveyard = sObjectMgr.GetClosestGraveYard(player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetMapId(), g_team);
 
@@ -3742,7 +3743,10 @@ bool ChatHandler::HandleNearGraveCommand(char* args)
     {
         uint32 g_id = graveyard->ID;
 
-        GraveYardData const* data = sObjectMgr.FindGraveYardData(g_id, zone_id);
+        GraveYardData const* data = sObjectMgr.FindGraveYardData(g_id, area_id);
+        if (!data || (g_team != TEAM_BOTH_ALLOWED && data->team != g_team && data->team != TEAM_BOTH_ALLOWED))
+            data = sObjectMgr.FindGraveYardData(g_id, zone_id);
+
         if (!data)
         {
             PSendSysMessage(LANG_COMMAND_GRAVEYARDERROR, g_id);
@@ -5724,7 +5728,7 @@ bool ChatHandler::HandleRespawnCommand(char* /*args*/)
             return false;
         }
 
-        if (target->isDead())
+        if (target->IsDead())
             ((Creature*)target)->Respawn();
         return true;
     }
@@ -6157,7 +6161,7 @@ bool ChatHandler::HandleCastTargetCommand(char* args)
         return false;
     }
 
-    if (!caster->getVictim())
+    if (!caster->GetVictim())
     {
         SendSysMessage(LANG_SELECTED_TARGET_NOT_HAVE_VICTIM);
         SetSentErrorMessage(true);
@@ -6175,7 +6179,7 @@ bool ChatHandler::HandleCastTargetCommand(char* args)
 
     caster->SetFacingToObject(m_session->GetPlayer());
 
-    caster->CastSpell(caster->getVictim(), spell, triggered ? TRIGGERED_OLD_TRIGGERED : TRIGGERED_NONE);
+    caster->CastSpell(caster->GetVictim(), spell, triggered ? TRIGGERED_OLD_TRIGGERED : TRIGGERED_NONE);
 
     return true;
 }

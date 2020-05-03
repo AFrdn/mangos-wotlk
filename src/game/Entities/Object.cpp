@@ -164,7 +164,7 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
 
     if (isType(TYPEMASK_UNIT))
     {
-        if (((Unit*)this)->getVictim())
+        if (((Unit*) this)->GetVictim())
             updateFlags |= UPDATEFLAG_HAS_ATTACKING_TARGET;
     }
 
@@ -384,8 +384,8 @@ void Object::BuildMovementUpdate(ByteBuffer* data, uint16 updateFlags) const
     // 0x4
     if (updateFlags & UPDATEFLAG_HAS_ATTACKING_TARGET)      // packed guid (current target guid)
     {
-        if (((Unit*)this)->getVictim())
-            *data << ((Unit*)this)->getVictim()->GetPackGUID();
+        if (((Unit*) this)->GetVictim())
+            *data << ((Unit*) this)->GetVictim()->GetPackGUID();
         else
             data->appendPackGUID(0);
     }
@@ -576,38 +576,10 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer* data, UpdateMask* u
                     *data << uint32(0);
                 }
 
-                // Alter unit flags when required
-                else if (index == UNIT_FIELD_FLAGS)
+                // Gamemasters should be always able to select units - remove not selectable flag
+                else if (index == UNIT_FIELD_FLAGS && target->isGameMaster())
                 {
-                    uint32 value = m_uint32Values[index];
-
-                    // Gamemasters should be always able to select units - remove not selectable flag
-                    if (target->isGameMaster())
-                        value &= ~UNIT_FLAG_NOT_SELECTABLE;
-
-                    // Conceal gathering profession loot hint for creatures when player doens't have appropriate skill for it
-                    // Gamemasters should see this hint regardless of skill
-                    if ((value & UNIT_FLAG_SKINNABLE) && !target->isGameMaster() && GetTypeId() == TYPEID_UNIT)
-                    {
-                        const uint32 flags = static_cast<const Creature*>(this)->GetCreatureInfo()->CreatureTypeFlags;
-
-                        if (flags & (CREATURE_TYPEFLAGS_HERBLOOT | CREATURE_TYPEFLAGS_MININGLOOT | CREATURE_TYPEFLAGS_ENGINEERLOOT))
-                        {
-                            uint16 skillid;
-
-                            if (flags & CREATURE_TYPEFLAGS_HERBLOOT)
-                                skillid = SKILL_HERBALISM;
-                            else if (flags & CREATURE_TYPEFLAGS_MININGLOOT)
-                                skillid = SKILL_MINING;
-                            else // (flags & CREATURE_TYPEFLAGS_ENGINEERLOOT)
-                                skillid = SKILL_ENGINEERING;
-
-                            if (!target->HasSkill(skillid))
-                                value &= ~UNIT_FLAG_SKINNABLE;
-                        }
-                    }
-
-                    *data << value;
+                    *data << (m_uint32Values[index] & ~UNIT_FLAG_NOT_SELECTABLE);
                 }
                 // Hide special-info for non empathy-casters,
                 // Hide lootable animation for unallowed players
@@ -618,7 +590,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer* data, UpdateMask* u
                     uint32 dynflagsValue = m_uint32Values[index];
                     bool setTapFlags = false;
 
-                    if (creature->isAlive())
+                    if (creature->IsAlive())
                     {
                         // Checking SPELL_AURA_EMPATHY and caster
                         if (dynflagsValue & UNIT_DYNFLAG_SPECIALINFO)
@@ -638,7 +610,7 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer* data, UpdateMask* u
 
                         // creature is alive so, not lootable
                         dynflagsValue = dynflagsValue & ~UNIT_DYNFLAG_LOOTABLE;
-                        if (creature->isInCombat())
+                        if (creature->IsInCombat())
                         {
                             // as creature is in combat we have to manage tap flags
                             setTapFlags = true;
@@ -1458,7 +1430,23 @@ bool WorldObject::IsInRange3d(float x, float y, float z, float minRange, float m
     return distsq < maxdist * maxdist;
 }
 
-float WorldObject::GetAngle(const WorldObject* obj) const
+// Return angle in range 0..2*pi
+float WorldObject::GetAngleAt(float x, float y, float ox, float oy)
+{
+    float dx = (ox - x);
+    float dy = (oy - y);
+
+    float ang = std::atan2(dy, dx);                              // returns value between -Pi..Pi
+    ang = (ang >= 0) ? ang : 2 * M_PI_F + ang;
+    return ang;
+}
+
+float WorldObject::GetAngle(float x, float y) const
+{
+    return GetAngleAt(GetPositionX(), GetPositionY(), x, y);
+}
+
+float WorldObject::GetAngleAt(float x, float y, const WorldObject* obj) const
 {
     if (!obj)
         return 0.0f;
@@ -1470,21 +1458,18 @@ float WorldObject::GetAngle(const WorldObject* obj) const
         sLog.outError("INVALID CALL for GetAngle for %s", obj->GetGuidStr().c_str());
         return 0.0f;
     }
-    return GetAngle(obj->GetPositionX(), obj->GetPositionY());
+    return GetAngleAt(x, y, obj->GetPositionX(), obj->GetPositionY());
 }
 
-// Return angle in range 0..2*pi
-float WorldObject::GetAngle(const float x, const float y) const
+float WorldObject::GetAngle(const WorldObject* obj) const
 {
-    float dx = x - GetPositionX();
-    float dy = y - GetPositionY();
+    if (!obj)
+        return 0.0f;
 
-    float ang = atan2(dy, dx);                              // returns value between -Pi..Pi
-    ang = (ang >= 0) ? ang : 2 * M_PI_F + ang;
-    return ang;
+    return GetAngleAt(GetPositionX(), GetPositionY(), obj->GetPositionX(), obj->GetPositionY());
 }
 
-bool WorldObject::HasInArc(const WorldObject* target, float arc /*= M_PI*/) const
+bool WorldObject::HasInArcAt(float x, float y, float o, const WorldObject* target, float arc/* = M_PI_F*/) const
 {
     // always have self in arc
     if (target == this)
@@ -1493,8 +1478,8 @@ bool WorldObject::HasInArc(const WorldObject* target, float arc /*= M_PI*/) cons
     // move arc to range 0.. 2*pi
     arc = MapManager::NormalizeOrientation(arc);
 
-    float angle = GetAngle(target);
-    angle -= m_position.o;
+    float angle = GetAngleAt(x, y, target);
+    angle -= o;
 
     // move angle to range -pi ... +pi
     angle = MapManager::NormalizeOrientation(angle);
@@ -1504,6 +1489,11 @@ bool WorldObject::HasInArc(const WorldObject* target, float arc /*= M_PI*/) cons
     float lborder =  -1 * (arc / 2.0f);                     // in range -pi..0
     float rborder = (arc / 2.0f);                           // in range 0..pi
     return ((angle >= lborder) && (angle <= rborder));
+}
+
+bool WorldObject::HasInArc(const WorldObject* target, float arc/* = M_PI_F*/) const
+{
+    return HasInArcAt(GetPositionX(), GetPositionY(), GetOrientation(), target, arc);
 }
 
 bool WorldObject::IsFacingTargetsBack(const WorldObject* target, float arc /*= M_PI_F*/) const

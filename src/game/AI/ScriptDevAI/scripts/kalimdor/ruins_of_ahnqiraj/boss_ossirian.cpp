@@ -155,7 +155,7 @@ struct boss_ossirianAI : public CombatAI
             // iterate from random roll until either one (should always occur) is found or we run out of crystals
             if (Creature* creature = m_creature->GetMap()->GetCreature(vector[i]))
             {
-                if (!creature->isAlive())
+                if (!creature->IsAlive())
                 {
                     creature->Respawn();
                     ++spawned;
@@ -174,7 +174,7 @@ struct boss_ossirianAI : public CombatAI
             return;
 
         if (Creature* creature = m_creature->GetMap()->GetCreature(vector[0]))
-            if (!creature->isAlive())
+            if (!creature->IsAlive())
                 creature->Respawn();
     }
 
@@ -269,7 +269,7 @@ struct boss_ossirianAI : public CombatAI
             }
             case OSSIRIAN_CYCLONE:
             {
-                if (DoCastSpellIfCan(m_creature->getVictim(), SPELL_CYCLONE) == CAST_OK)
+                if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_CYCLONE) == CAST_OK)
                     ResetCombatAction(action, 20000);
                 break;
             }

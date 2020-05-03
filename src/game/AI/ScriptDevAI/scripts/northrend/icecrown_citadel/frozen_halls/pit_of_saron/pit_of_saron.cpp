@@ -64,7 +64,7 @@ struct npc_ymirjar_deathbringerAI : public ScriptedAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiShadowBoltTimer < uiDiff)
@@ -152,7 +152,7 @@ UnitAI* GetAI_npc_collapsing_icicle(Creature* pCreature)
 
 bool AreaTrigger_at_pit_of_saron(Player* pPlayer, AreaTriggerEntry const* pAt)
 {
-    if (pPlayer->isGameMaster() || !pPlayer->isAlive())
+    if (pPlayer->isGameMaster() || !pPlayer->IsAlive())
         return false;
 
     instance_pit_of_saron* pInstance = (instance_pit_of_saron*)pPlayer->GetInstanceData();

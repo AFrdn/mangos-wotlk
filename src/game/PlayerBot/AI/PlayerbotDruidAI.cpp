@@ -158,8 +158,6 @@ CombatManeuverReturns PlayerbotDruidAI::DoFirstCombatManeuver(Unit* pTarget)
         default:
             return DoFirstCombatManeuverPVE(pTarget);
     }
-
-    return RETURN_NO_ACTION_ERROR;
 }
 
 CombatManeuverReturns PlayerbotDruidAI::DoFirstCombatManeuverPVE(Unit* /*pTarget*/)
@@ -188,8 +186,6 @@ CombatManeuverReturns PlayerbotDruidAI::DoNextCombatManeuver(Unit* pTarget)
         default:
             return DoNextCombatManeuverPVE(pTarget);
     }
-
-    return RETURN_NO_ACTION_ERROR;
 }
 
 CombatManeuverReturns PlayerbotDruidAI::DoNextCombatManeuverPVE(Unit* pTarget)
@@ -209,7 +205,7 @@ CombatManeuverReturns PlayerbotDruidAI::DoNextCombatManeuverPVE(Unit* pTarget)
     else if (!m_ai->IsHealer() && m_ai->GetCombatStyle() != PlayerbotAI::COMBAT_MELEE)
         m_ai->SetCombatStyle(PlayerbotAI::COMBAT_MELEE);
 
-    //Unit* pVictim = pTarget->getVictim();
+    //Unit* pVictim = pTarget->GetVictim();
     uint32 BEAR = (DIRE_BEAR_FORM > 0 ? DIRE_BEAR_FORM : BEAR_FORM);
 
     // TODO: do something to allow emergency heals for non-healers?
@@ -232,7 +228,7 @@ CombatManeuverReturns PlayerbotDruidAI::DoNextCombatManeuverPVE(Unit* pTarget)
 
     //Used to determine if this bot is highest on threat
     Unit* newTarget = m_ai->FindAttacker((PlayerbotAI::ATTACKERINFOTYPE)(PlayerbotAI::AIT_VICTIMSELF | PlayerbotAI::AIT_HIGHESTTHREAT), m_bot);
-    if (newTarget) // TODO: && party has a tank
+    if (newTarget && !(m_ai->GetCombatOrder() & PlayerbotAI::ORDERS_TANK) && !PlayerbotAI::IsNeutralized(newTarget)) // TODO: && party has a tank
     {
         if (HealPlayer(m_bot) == RETURN_CONTINUE)
             return RETURN_CONTINUE;
@@ -306,7 +302,7 @@ CombatManeuverReturns PlayerbotDruidAI::_DoNextPVECombatManeuverBear(Unit* pTarg
 
     // Used to determine if this bot is highest on threat
     Unit* newTarget = m_ai->FindAttacker((PlayerbotAI::ATTACKERINFOTYPE)(PlayerbotAI::AIT_VICTIMSELF | PlayerbotAI::AIT_HIGHESTTHREAT), m_bot);
-    Unit* pVictim = pTarget->getVictim();
+    Unit* pVictim = pTarget->GetVictim();
 
     // Face enemy, make sure you're attacking
     if (!m_bot->HasInArc(pTarget))
@@ -354,7 +350,7 @@ CombatManeuverReturns PlayerbotDruidAI::_DoNextPVECombatManeuverCat(Unit* pTarge
 
     //Used to determine if this bot is highest on threat
     Unit* newTarget = m_ai->FindAttacker((PlayerbotAI::ATTACKERINFOTYPE)(PlayerbotAI::AIT_VICTIMSELF | PlayerbotAI::AIT_HIGHESTTHREAT), m_bot);
-    Unit* pVictim = pTarget->getVictim();
+    Unit* pVictim = pTarget->GetVictim();
 
     // Face enemy, make sure you're attacking
     if (!m_bot->HasInArc(pTarget))
@@ -563,7 +559,7 @@ CombatManeuverReturns PlayerbotDruidAI::ResurrectPlayer(Player* target)
     if (r != RETURN_NO_ACTION_OK)
         return r;
 
-    if (m_bot->isInCombat())
+    if (m_bot->IsInCombat())
     {
         if (REBIRTH > 0 && m_ai->In_Reach(target, REBIRTH) && m_bot->IsSpellReady(REBIRTH) && m_ai->CastSpell(REBIRTH, *target) == SPELL_CAST_OK)
         {
@@ -753,7 +749,7 @@ void PlayerbotDruidAI::DoNonCombatActions()
     if (!m_ai)   return;
     if (!m_bot)  return;
 
-    if (!m_bot->isAlive() || m_bot->IsInDuel()) return;
+    if (!m_bot->IsAlive() || m_bot->IsInDuel()) return;
 
     // Revive
     if (ResurrectPlayer(GetResurrectionTarget()) & RETURN_CONTINUE)
@@ -811,14 +807,9 @@ bool PlayerbotDruidAI::BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* target)
     if (!target)      return false;
     //DEBUG_LOG("..Sanity checks passed");
 
-    if (ai->Buff(spellId, target, &(PlayerbotDruidAI::GoBuffForm)) == SPELL_CAST_OK)
-    {
-        //DEBUG_LOG("..Buffed");
-        return true;
-    }
+    return ai->Buff(spellId, target, &(PlayerbotDruidAI::GoBuffForm)) == SPELL_CAST_OK;
 
     //DEBUG_LOG("..Not buffing anyone!");
-    return false;
 }
 
 void PlayerbotDruidAI::GoBuffForm(Player* self)
@@ -840,19 +831,13 @@ void PlayerbotDruidAI::GoBuffForm(Player* self)
 // Match up with "Pull()" below
 bool PlayerbotDruidAI::CanPull()
 {
-    if (BEAR_FORM > 0 && FAERIE_FIRE_FERAL)
-        return true;
-
-    return false;
+    return BEAR_FORM > 0 && FAERIE_FIRE_FERAL;
 }
 
 // Match up with "CanPull()" above
 bool PlayerbotDruidAI::Pull()
 {
-    if (BEAR_FORM > 0 && (CastSpell(FAERIE_FIRE_FERAL) & RETURN_CONTINUE))
-        return true;
-
-    return false;
+    return BEAR_FORM > 0 && (CastSpell(FAERIE_FIRE_FERAL) & RETURN_CONTINUE);
 }
 
 bool PlayerbotDruidAI::CastHoTOnTank()
@@ -885,6 +870,4 @@ uint32 PlayerbotDruidAI::Neutralize(uint8 creatureType)
         return HIBERNATE;
     else
         return 0;
-
-    return 0;
 }

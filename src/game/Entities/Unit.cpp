@@ -50,6 +50,7 @@
 #include "Tools/Formulas.h"
 
 #include <math.h>
+#include <limits>
 #include <array>
 
 float baseMoveSpeed[MAX_MOVE_TYPE] =
@@ -403,7 +404,7 @@ void Unit::Update(const uint32 diff)
     if (IsVehicle())
     {
         // Initialize vehicle if not done
-        if (isAlive() && !m_vehicleInfo->IsInitialized())
+        if (IsAlive() && !m_vehicleInfo->IsInitialized())
             m_vehicleInfo->Initialize();
 
         // Update passenger positions if we are the first vehicle
@@ -417,12 +418,12 @@ void Unit::Update(const uint32 diff)
     UpdateSplineMovement(diff);
     i_motionMaster.UpdateMotion(diff);
 
-    if (AI() && isAlive())
+    if (AI() && IsAlive())
         AI()->UpdateAI(diff);   // AI not react good at real update delays (while freeze in non-active part of map)
 
     GetCombatManager().Update(diff);
 
-    if (isAlive())
+    if (IsAlive())
     {
         ModifyAuraState(AURA_STATE_HEALTHLESS_20_PERCENT, GetHealth() < GetMaxHealth() * 0.20f);
         ModifyAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, GetHealth() < GetMaxHealth() * 0.35f);
@@ -490,7 +491,7 @@ void Unit::EvadeTimerExpired()
         return;
     }
 
-    getThreatManager().SetTargetSuppressed(getVictim());
+    getThreatManager().SetTargetSuppressed(GetVictim());
 }
 
 enum SwingErrors
@@ -503,7 +504,7 @@ enum SwingErrors
 
 bool Unit::UpdateMeleeAttackingState()
 {
-    Unit* victim = getVictim();
+    Unit* victim = GetVictim();
     if (!victim || IsNonMeleeSpellCasted(false))
         return false;
 
@@ -518,7 +519,7 @@ bool Unit::UpdateMeleeAttackingState()
         swingError = SWING_ERROR_NOT_IN_RANGE;
     else if (!HasInArc(victim))
         swingError = SWING_ERROR_BAD_FACING;
-    else if (!victim->isAlive())
+    else if (!victim->IsAlive())
         swingError = SWING_ERROR_TARGET_NOT_ALIVE;
     else if (!CanAttack(victim))
         swingError = SWING_ERROR_CANT_ATTACK_TARGET;
@@ -588,10 +589,10 @@ void Unit::SendHeartBeat()
 
 void Unit::SendMoveRoot(bool state, bool/* broadcastOnly*/)
 {
-    const Player* player = GetClientControlling();
+    const Player* client = GetClientControlling();
 
     // Apply flags in-place when unit currently is not controlled by a player
-    if (!player)
+    if (!client)
     {
         if (state)
         {
@@ -604,7 +605,7 @@ void Unit::SendMoveRoot(bool state, bool/* broadcastOnly*/)
 
     const PackedGuid &guid = GetPackGUID();
     // Wrath+ spline root: when unit is currently not controlled by a player
-    if (!player)
+    if (!client)
     {
         WorldPacket data(state ? SMSG_SPLINE_MOVE_ROOT : SMSG_SPLINE_MOVE_UNROOT, guid.size());
         data << guid;
@@ -700,7 +701,7 @@ void Unit::RemoveSpellsCausingAura(AuraType auraType, ObjectGuid casterGuid)
 
 void Unit::DealDamageMods(Unit* dealer, Unit* victim, uint32& damage, uint32* absorb, DamageEffectType damagetype, SpellEntry const* spellProto)
 {
-    if (!victim->isAlive() || victim->IsTaxiFlying() || victim->GetCombatManager().IsInEvadeMode())
+    if (!victim->IsAlive() || victim->IsTaxiFlying() || victim->GetCombatManager().IsInEvadeMode())
     {
         if (absorb)
             *absorb += damage;
@@ -743,7 +744,7 @@ uint32 Unit::DealDamage(Unit* dealer, Unit* victim, uint32 damage, CleanDamage c
     if (damagetype != DOT && damagetype != INSTAKILL)
     {
         // Since patch 1.5.0 sitting characters always stand up on attack (even if stunned)
-        if (!victim->IsStandState() && (victim->GetTypeId() == TYPEID_PLAYER || !victim->hasUnitState(UNIT_STAT_STUNNED)))
+        if (!victim->IsStandState() && (victim->GetTypeId() == TYPEID_PLAYER || !victim->IsStunned()))
             victim->SetStandState(UNIT_STAND_STATE_STAND);
     }
 
@@ -1212,7 +1213,7 @@ struct PetOwnerKilledUnitHelper
 
 void Unit::JustKilledCreature(Unit* killer, Creature* victim, Player* responsiblePlayer)
 {
-    victim->m_deathState = DEAD; // so that isAlive, isDead return expected results in the called hooks of JustKilledCreature
+    victim->m_deathState = DEAD; // so that IsAlive, IsDead return expected results in the called hooks of JustKilledCreature
     // must be used only shortly before SetDeathState(JUST_DIED) and only for Creatures or Pets
 
     // some critters required for quests (need normal entry instead possible heroic in any cases)
@@ -1624,7 +1625,7 @@ void Unit::DealSpellDamage(SpellNonMeleeDamage* spellDamageInfo, bool durability
     if (!pVictim)
         return;
 
-    if (!pVictim->isAlive() || pVictim->IsTaxiFlying() || pVictim->GetCombatManager().IsInEvadeMode())
+    if (!pVictim->IsAlive() || pVictim->IsTaxiFlying() || pVictim->GetCombatManager().IsInEvadeMode())
         return;
 
     SpellEntry const* spellProto = sSpellTemplate.LookupEntry<SpellEntry>(spellDamageInfo->SpellID);
@@ -1682,7 +1683,7 @@ void Unit::CalculateMeleeDamage(Unit* pVictim, CalcDamageInfo* calcDamageInfo, W
     if (!pVictim)
         return;
 
-    if (!this->isAlive() || !pVictim->isAlive())
+    if (!this->IsAlive() || !pVictim->IsAlive())
         return;
 
     // Select HitInfo/procAttacker/procVictim flag based on attack type
@@ -1977,7 +1978,7 @@ void Unit::DealMeleeDamage(CalcDamageInfo* calcDamageInfo, bool durabilityLoss)
     if (!victim)
         return;
 
-    if (!victim->isAlive() || victim->IsTaxiFlying() || victim->GetCombatManager().IsInEvadeMode())
+    if (!victim->IsAlive() || victim->IsTaxiFlying() || victim->GetCombatManager().IsInEvadeMode())
         return;
 
     // You don't lose health from damage taken from another player while in a sanctuary
@@ -2220,7 +2221,7 @@ float Unit::CalcArmorReducedDamage(Unit* pVictim, const float damage)
 
 void Unit::CalculateDamageAbsorbAndResist(Unit* caster, SpellSchoolMask schoolMask, DamageEffectType damagetype, const uint32 damage, uint32* absorb, int32* resist, bool canReflect, bool canResist, bool binary)
 {
-    if (!isAlive() || !damage)
+    if (!IsAlive() || !damage)
         return;
 
     int32 RemainingDamage = int32(damage);
@@ -2655,7 +2656,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* caster, SpellSchoolMask schoolMa
 
             // Damage can be splitted only if aura has an alive caster
             Unit* caster = (*i)->GetCaster();
-            if (!caster || caster == this || !caster->IsInWorld() || !caster->isAlive())
+            if (!caster || caster == this || !caster->IsInWorld() || !caster->IsAlive())
                 continue;
 
             int32 currentAbsorb;
@@ -2693,7 +2694,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* caster, SpellSchoolMask schoolMa
 
             // Damage can be splitted only if aura has an alive caster
             Unit* caster = (*i)->GetCaster();
-            if (!caster || caster == this || !caster->IsInWorld() || !caster->isAlive())
+            if (!caster || caster == this || !caster->IsInWorld() || !caster->IsAlive())
                 continue;
 
             uint32 splitted = uint32(RemainingDamage * (*i)->GetModifier()->m_amount / 100.0f);
@@ -2780,7 +2781,7 @@ void Unit::CalculateAbsorbResistBlock(Unit* pCaster, SpellNonMeleeDamage* damage
 
 void Unit::CalculateHealAbsorb(const uint32 heal, uint32* absorb)
 {
-    if (!isAlive() || !heal)
+    if (!IsAlive() || !heal)
         return;
 
     int32 RemainingHeal = heal;
@@ -2843,7 +2844,7 @@ void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType, bool ext
     if (hasUnitState(UNIT_STAT_CAN_NOT_REACT) || HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED))
         return;
 
-    if (!pVictim->isAlive())
+    if (!pVictim->IsAlive())
         return;
 
     if (!extra && IsNonMeleeSpellCasted(false))
@@ -3065,7 +3066,7 @@ void Unit::SendMeleeAttackStop(Unit* victim) const
     ((Creature*)victim)->AI().EnterEvadeMode(this);*/
 }
 
-SpellMissInfo Unit::MeleeSpellHitResult(Unit* pVictim, SpellEntry const* spell)
+SpellMissInfo Unit::MeleeSpellHitResult(Unit* pVictim, SpellEntry const* spell, uint32* heartbeatResistChance/* = nullptr*/)
 {
     Die<UnitCombatDieSide, UNIT_COMBAT_DIE_HIT, NUM_UNIT_COMBAT_DIE_SIDES> die;
     die.set(UNIT_COMBAT_DIE_MISS, CalculateSpellMissChance(pVictim, SPELL_SCHOOL_MASK_NORMAL, spell));
@@ -3085,6 +3086,11 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* pVictim, SpellEntry const* spell)
     DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "MeleeSpellHitResult: New ability hit die: %u [MISS:%u, RESIST:%u, DODGE:%u, PARRY:%u, DEFLECT:%u, BLOCK:%u]", spell->Id,
                      die.chance[UNIT_COMBAT_DIE_MISS], die.chance[UNIT_COMBAT_DIE_RESIST], die.chance[UNIT_COMBAT_DIE_DODGE],
                      die.chance[UNIT_COMBAT_DIE_PARRY], die.chance[UNIT_COMBAT_DIE_DEFLECT], die.chance[UNIT_COMBAT_DIE_BLOCK]);
+
+    // Memorize heartbeat resist chance if needed:
+    if (heartbeatResistChance && spell->HasAttribute(SPELL_ATTR_HEARTBEAT_RESIST_CHECK))
+        *heartbeatResistChance = (die.chance[UNIT_COMBAT_DIE_RESIST] + die.chance[UNIT_COMBAT_DIE_MISS]);
+
     const uint32 random = urand(1, 10000);
     const UnitCombatDieSide side = die.roll(random);
     if (side != UNIT_COMBAT_DIE_HIT)
@@ -3102,7 +3108,7 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* pVictim, SpellEntry const* spell)
     return SPELL_MISS_NONE;
 }
 
-SpellMissInfo Unit::MagicSpellHitResult(Unit* pVictim, SpellEntry const* spell, SpellSchoolMask schoolMask)
+SpellMissInfo Unit::MagicSpellHitResult(Unit* pVictim, SpellEntry const* spell, SpellSchoolMask schoolMask, uint32* heartbeatResistChance/* = nullptr*/)
 {
     Die<UnitCombatDieSide, UNIT_COMBAT_DIE_HIT, NUM_UNIT_COMBAT_DIE_SIDES> die;
     die.set(UNIT_COMBAT_DIE_MISS, CalculateSpellMissChance(pVictim, schoolMask, spell));
@@ -3111,6 +3117,11 @@ SpellMissInfo Unit::MagicSpellHitResult(Unit* pVictim, SpellEntry const* spell, 
         die.set(UNIT_COMBAT_DIE_DEFLECT, pVictim->CalculateAbilityDeflectChance(this, spell));
     DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "MagicSpellHitResult: New spell hit die: %u [MISS:%u, RESIST:%u, DEFLECT:%u]", spell->Id,
                      die.chance[UNIT_COMBAT_DIE_MISS], die.chance[UNIT_COMBAT_DIE_RESIST], die.chance[UNIT_COMBAT_DIE_DEFLECT]);
+
+    // Memorize heartbeat resist chance if needed:
+    if (heartbeatResistChance && spell->HasAttribute(SPELL_ATTR_HEARTBEAT_RESIST_CHECK))
+        *heartbeatResistChance = (die.chance[UNIT_COMBAT_DIE_RESIST] + die.chance[UNIT_COMBAT_DIE_MISS]);
+
     const uint32 random = urand(1, 10000);
     const UnitCombatDieSide side = die.roll(random);
     if (side != UNIT_COMBAT_DIE_HIT)
@@ -3125,10 +3136,10 @@ SpellMissInfo Unit::MagicSpellHitResult(Unit* pVictim, SpellEntry const* spell, 
     return SPELL_MISS_NONE;
 }
 
-SpellMissInfo Unit::SpellHitResult(Unit* pVictim, SpellEntry const* spell, uint8 effectMask, bool reflectable)
+SpellMissInfo Unit::SpellHitResult(Unit* pVictim, SpellEntry const* spell, uint8 effectMask, bool reflectable, uint32* heartbeatResistChance/* = nullptr*/)
 {
     // Dead units can't be missed, can't resist, reflect, etc
-    if (!pVictim->isAlive())
+    if (!pVictim->IsAlive())
         return SPELL_MISS_NONE;
 
     // Return evade for units in evade mode
@@ -3181,9 +3192,9 @@ SpellMissInfo Unit::SpellHitResult(Unit* pVictim, SpellEntry const* spell, uint8
     {
         case SPELL_DAMAGE_CLASS_MELEE:
         case SPELL_DAMAGE_CLASS_RANGED:
-            return MeleeSpellHitResult(pVictim, spell);
+            return MeleeSpellHitResult(pVictim, spell, heartbeatResistChance);
         case SPELL_DAMAGE_CLASS_MAGIC:
-            return MagicSpellHitResult(pVictim, spell, schoolMask);
+            return MagicSpellHitResult(pVictim, spell, schoolMask, heartbeatResistChance);
         case SPELL_DAMAGE_CLASS_NONE:
             // Usually never misses, but needs more research for some spells
             break;
@@ -5207,7 +5218,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
     SpellEntry const* aurSpellInfo = holder->GetSpellProto();
 
     // ghost spell check, allow apply any auras at player loading in ghost mode (will be cleanup after load)
-    if (!isAlive() && !IsDeathPersistentSpell(aurSpellInfo) &&
+    if (!IsAlive() && !IsDeathPersistentSpell(aurSpellInfo) &&
             !IsDeathOnlySpell(aurSpellInfo) && !aurSpellInfo->HasAttribute(SPELL_ATTR_EX2_CAN_TARGET_DEAD) &&
             (GetTypeId() != TYPEID_PLAYER || !((Player*)this)->GetSession()->PlayerLoading()))
     {
@@ -5661,7 +5672,7 @@ void Unit::RemoveAuraHolderDueToSpellByDispel(uint32 spellId, uint32 dispellingS
         if (Aura* dotAura = GetAura(SPELL_AURA_PERIODIC_DAMAGE, SPELLFAMILY_SHAMAN, uint64(0x10000000), 0x00000000, casterGuid))
             caster = dotAura->GetCaster();
 
-        if (caster && !caster->isDead())
+        if (caster && !caster->IsDead())
         {
             Unit::AuraList const& auras = caster->GetAurasByType(SPELL_AURA_DUMMY);
             for (auto aura : auras)
@@ -6734,7 +6745,7 @@ void Unit::CasterHitTargetWithSpell(Unit* realCaster, Unit* target, SpellEntry c
             realCaster->SetOutOfCombatWithVictim(target);
         }
     }
-    else if (realCaster->CanAssist(target) && target->isInCombat())
+    else if (realCaster->CanAssist(target) && target->IsInCombat())
     {
         // assisting case, healing and resurrection
         if (!spellInfo->HasAttribute(SPELL_ATTR_EX3_NO_INITIAL_AGGRO) && !spellInfo->HasAttribute(SPELL_ATTR_EX_NO_THREAT) && CanEnterCombat() && target->CanEnterCombat())
@@ -6959,7 +6970,7 @@ bool Unit::IsNeutralToAll() const
 
 void Unit::AttackedBy(Unit* attacker)
 {
-    if (!isAlive())
+    if (!IsAlive())
         return;
 
     // trigger AI reaction
@@ -6981,7 +6992,7 @@ bool Unit::Attack(Unit* victim, bool meleeAttack)
         return false;
 
     // dead units can neither attack nor be attacked
-    if (!isAlive() || !victim->IsInWorld() || !victim->isAlive())
+    if (!IsAlive() || !victim->IsInWorld() || !victim->IsAlive())
         return false;
 
     // player cannot attack in mount state
@@ -7688,7 +7699,7 @@ Unit* Unit::SelectMagnetTarget(Unit* victim, Spell* spell)
         {
             if (Unit* magnet = magnetAura->GetCaster())
             {
-                if (magnet->isAlive() && magnet->IsWithinLOSInMap(this) && CanAttack(magnet))
+                if (magnet->IsAlive() && magnet->IsWithinLOSInMap(this) && CanAttack(magnet))
                 {
                     magnetAura->UseMagnet();
                     return magnet;
@@ -7707,7 +7718,7 @@ Unit* Unit::SelectMagnetTarget(Unit* victim, Spell* spell)
         {
             if (Unit* magnet = hitTriggerAura->GetCaster())
             {
-                if (magnet->isAlive() && magnet->IsWithinLOSInMap(this) && CanAttack(magnet))
+                if (magnet->IsAlive() && magnet->IsWithinLOSInMap(this) && CanAttack(magnet))
                 {
                     if (roll_chance_i(hitTriggerAura->GetModifier()->m_amount))
                     {
@@ -9376,7 +9387,7 @@ void Unit::SetInCombatWithVictim(Unit* victim, bool touchOnly/* = false*/)
 void Unit::SetInCombatState(bool PvP, Unit* enemy)
 {
     // only alive units can be in combat
-    if (!isAlive())
+    if (!IsAlive())
         return;
 
     bool creatureNotInCombat = GetTypeId() == TYPEID_UNIT && !HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT);
@@ -9393,15 +9404,16 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
         if (enemy)
         {
             // TODO: Unify this combat propagation with linking combat propagation in threat system
-            Unit* controller = HasCharmer() ? GetCharmer() : GetOwner();
-            if (controller && enemy->CanAttack(controller) && !hasUnitState(UNIT_STAT_FEIGN_DEATH))
+            Unit* controller = GetMaster();
+
+            if (controller && enemy->CanAttackOnSight(controller))
             {
                 if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED))
                 {
                     controller->SetInCombatWith(enemy); // player only enters combat
                     enemy->AddThreat(controller);
                 }
-                else if (controller->isInCombat())
+                else if (controller->IsInCombat())
                 {
                     controller->AddThreat(enemy);
                     enemy->AddThreat(controller);
@@ -9593,13 +9605,13 @@ bool Unit::IsVisibleForOrDetect(Unit const* u, WorldObject const* viewPoint, boo
             return false;
 
         // if player is dead then he can't detect anyone in any cases
-        if (!u->isAlive())
+        if (!u->IsAlive())
             detect = false;
     }
     else
     {
         // all dead creatures/players not visible for any creatures
-        if (!u->isAlive() || !isAlive())
+        if (!u->IsAlive() || !IsAlive())
             return false;
     }
 
@@ -9617,7 +9629,7 @@ bool Unit::IsVisibleForOrDetect(Unit const* u, WorldObject const* viewPoint, boo
     // isInvisibleForAlive() those units can only be seen by dead or if other
     // unit is also invisible for alive.. if an isinvisibleforalive unit dies we
     // should be able to see it too
-    if (u->isAlive() && isAlive() && isInvisibleForAlive() != u->isInvisibleForAlive())
+    if (u->IsAlive() && IsAlive() && isInvisibleForAlive() != u->isInvisibleForAlive())
         if (u->GetTypeId() != TYPEID_PLAYER || !((Player*)u)->isGameMaster())
             return false;
 
@@ -9699,7 +9711,7 @@ bool Unit::IsVisibleForOrDetect(Unit const* u, WorldObject const* viewPoint, boo
         return true;
 
     // If a mob or player is stunned he will not be able to detect stealth
-    if (u->hasUnitState(UNIT_STAT_STUNNED) && (u != this))
+    if (u->IsStunned() && (u != this))
         return false;
 
     // set max distance
@@ -9862,7 +9874,7 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
     // for player case, we look for some custom rates
     if (GetTypeId() == TYPEID_PLAYER)
     {
-        if (getDeathState() == CORPSE)
+        if (GetDeathState() == CORPSE)
             speed *= sWorld.getConfig(((Player*)this)->InBattleGround() ? CONFIG_FLOAT_GHOST_RUN_SPEED_BG : CONFIG_FLOAT_GHOST_RUN_SPEED_WORLD);
     }
 
@@ -9894,9 +9906,20 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
     SetSpeedRate(mtype, speed * ratio, forced);
 }
 
+float Unit::GetSpeedInMotion() const
+{
+    return (movespline->Finalized() ? GetSpeed(m_movementInfo.GetSpeedType()) : movespline->Speed());
+}
+
 float Unit::GetSpeed(UnitMoveType mtype) const
 {
     return m_speed_rate[mtype] * baseMoveSpeed[mtype];
+}
+
+float Unit::GetSpeedRateInMotion() const
+{
+    const UnitMoveType type = m_movementInfo.GetSpeedType();
+    return (movespline->Finalized() ? GetSpeedRate(type) : (movespline->Speed() / GetSpeed(type)));
 }
 
 struct SetSpeedRateHelper
@@ -10038,7 +10061,7 @@ bool Unit::IsTargetUnderControl(Unit const& target) const
 bool Unit::CanHaveThreatList(bool ignoreAliveState/*=false*/) const
 {
     // only alive units can have threat list
-    if (!isAlive() && !ignoreAliveState)
+    if (!IsAlive() && !ignoreAliveState)
         return false;
 
     if (GetTypeId() == TYPEID_PLAYER) // only charmed players have a threat list
@@ -10125,7 +10148,7 @@ bool Unit::SelectHostileTarget()
     // next-victim-selection algorithm and evade mode are called
     // threat list sorting etc.
 
-    if (!this->isAlive())
+    if (!this->IsAlive())
         return false;
 
     // This function only useful once AI has been initialized
@@ -10142,7 +10165,7 @@ bool Unit::SelectHostileTarget()
     }
 
     Unit* target = nullptr;
-    Unit* oldTarget = getVictim();
+    Unit* oldTarget = GetVictim();
 
     if (!target && !getThreatManager().isThreatListEmpty())
         target = getThreatManager().getHostileTarget();
@@ -10190,7 +10213,7 @@ bool Unit::SelectHostileTarget()
     // return true but no target
 
     // no target but something prevent go to evade mode
-    if (!isInCombat())
+    if (!IsInCombat())
         return false;
 
     // last case when creature don't must go to evade mode:
@@ -10304,8 +10327,11 @@ DiminishingLevels Unit::GetDiminishing(DiminishingGroup group)
         if (!i.hitTime)
             return DIMINISHING_LEVEL_1;
 
-        // If last spell was casted more than 15 seconds ago - reset the count.
-        if (i.stack == 0 && WorldTimer::getMSTimeDiff(i.hitTime, WorldTimer::getMSTime()) > 15 * IN_MILLISECONDS)
+        const bool pvp = (GetTypeId() == TYPEID_PLAYER);
+        const bool diminished = IsDiminishingReturnsGroupDurationDiminished(group, pvp);
+
+        // If enough time has passed sinc the last spell from this group was casted - reset the count
+        if (diminished && i.stack == 0 && WorldTimer::getMSTimeDiff(i.hitTime, WorldTimer::getMSTime()) > (15 * IN_MILLISECONDS))
         {
             i.hitCount = DIMINISHING_LEVEL_1;
             return DIMINISHING_LEVEL_1;
@@ -10316,18 +10342,26 @@ DiminishingLevels Unit::GetDiminishing(DiminishingGroup group)
     return DIMINISHING_LEVEL_1;
 }
 
-void Unit::IncrDiminishing(DiminishingGroup group)
+void Unit::IncrDiminishing(DiminishingGroup group, uint32 duration, bool pvp)
 {
+    const bool diminished = IsDiminishingReturnsGroupDurationDiminished(group, pvp);
+
     // Checking for existing in the table
     for (auto& i : m_Diminishing)
     {
         if (i.DRGroup != group)
             continue;
-        if (i.hitCount < DIMINISHING_LEVEL_IMMUNE)
+
+        if (!diminished)
+            i.hitCount += (i.hitCount < std::numeric_limits<uint32>::max() ? 1 : 0);
+        else if (i.hitCount < DIMINISHING_LEVEL_IMMUNE)
             i.hitCount += 1;
+        else
+            i.hitCount = DIMINISHING_LEVEL_IMMUNE;
+
         return;
     }
-    m_Diminishing.push_back(DiminishingReturn(group, WorldTimer::getMSTime(), DIMINISHING_LEVEL_2));
+    m_Diminishing.push_back(DiminishingReturn(group, WorldTimer::getMSTime(), DIMINISHING_LEVEL_2, duration));
 }
 
 void Unit::ApplyDiminishingToDuration(DiminishingGroup group, int32& duration, Unit* caster, DiminishingLevels Level, int32 limitduration, bool isReflected)
@@ -10351,17 +10385,23 @@ void Unit::ApplyDiminishingToDuration(DiminishingGroup group, int32& duration, U
 
     float mod = 1.0f;
 
+    const bool pvp = (GetTypeId() == TYPEID_PLAYER && caster->GetTypeId() == TYPEID_PLAYER);
+
     // Some diminishings applies to mobs too (for example, Stun)
-    if ((GetDiminishingReturnsGroupType(group) == DRTYPE_PLAYER && GetTypeId() == TYPEID_PLAYER) || GetDiminishingReturnsGroupType(group) == DRTYPE_ALL)
+    if ((GetDiminishingReturnsGroupType(group) == DRTYPE_PLAYER && pvp) || GetDiminishingReturnsGroupType(group) == DRTYPE_ALL)
     {
-        DiminishingLevels diminish = Level;
-        switch (diminish)
+        if (IsDiminishingReturnsGroupDurationDiminished(group, pvp))
         {
-            case DIMINISHING_LEVEL_1: break;
-            case DIMINISHING_LEVEL_2: mod = 0.5f; break;
-            case DIMINISHING_LEVEL_3: mod = 0.25f; break;
-            case DIMINISHING_LEVEL_IMMUNE: mod = 0.0f; break;
-            default: break;
+            DiminishingLevels diminish = Level;
+
+            switch (diminish)
+            {
+                case DIMINISHING_LEVEL_1: break;
+                case DIMINISHING_LEVEL_2: mod = 0.5f; break;
+                case DIMINISHING_LEVEL_3: mod = 0.25f; break;
+                case DIMINISHING_LEVEL_IMMUNE: mod = 0.0f; break;
+                default: break;
+            }
         }
     }
 
@@ -11437,24 +11477,22 @@ bool Unit::SetFleeing(bool apply, ObjectGuid casterGuid/* = ObjectGuid()*/, uint
     return false;
 }
 
-bool Unit::SetStunned(bool apply, ObjectGuid casterGuid, uint32 spellID)
+bool Unit::SetStunned(bool apply, ObjectGuid casterGuid, uint32 spellID, bool logout/* = false*/)
 {
-    if (apply != HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED))
+    const bool initial = (apply && !IsStunned());
+    const bool update = (apply != hasUnitState(logout ? UNIT_STAT_LOGOUT_TIMER : UNIT_STAT_STUNNED));
+
+    if (initial || update || (logout && !apply))
     {
-        if (apply)
-        {
+        if (initial)
             CastStop(GetObjectGuid() == casterGuid ? spellID : 0);
-            SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
-        }
-        else
-            RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED);
 
-        SetImmobilizedState(apply, true);
+        SetImmobilizedState(apply, true, logout);
 
-        if (const bool requireTargetChange = (!IsControlledByPlayer() && AI()))
+        if (initial)
         {
             // Non-client controlled unit with an AI should drop target
-            if (apply)
+            if (const bool requireTargetChange = (!IsControlledByPlayer() && AI()))
             {
                 if (!GetTargetGuid().IsEmpty())
                     SetTargetGuid(ObjectGuid());
@@ -11465,22 +11503,49 @@ bool Unit::SetStunned(bool apply, ObjectGuid casterGuid, uint32 spellID)
             }
         }
 
-        ApplyModFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNK_29, (IsStunned() || IsFeigningDeath()));
+        ApplyModFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED, hasUnitState(UNIT_STAT_STUNNED | UNIT_STAT_LOGOUT_TIMER));
+
+        if (!logout)
+            ApplyModFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNK_29, (IsStunned() || IsFeigningDeath()));
 
         return true;
     }
     return false;
 }
 
-void Unit::SetImmobilizedState(bool apply, bool stun)
+bool Unit::SetStunnedByLogout(bool apply)
 {
-    const uint32 state = (stun ? UNIT_STAT_STUNNED : UNIT_STAT_ROOT);
+    if (SetStunned(apply, ObjectGuid(), 0, true))
+    {
+        // Sit down when eligible:
+        if (apply)
+        {
+            if (IsStandState())
+            {
+                if (!m_movementInfo.HasMovementFlag(MovementFlags(movementFlagsMask | MOVEFLAG_SWIMMING | MOVEFLAG_SPLINE_ENABLED)))
+                    SetStandState(UNIT_STAND_STATE_SIT);
+            }
+        }
+        // Stand up on cancel
+        else if (getStandState() == UNIT_STAND_STATE_SIT)
+            SetStandState(UNIT_STAND_STATE_STAND);
+
+        return true;
+    }
+    return false;
+}
+
+void Unit::SetImmobilizedState(bool apply, bool stun, bool logout)
+{
+    const uint32 state = (stun ? (logout ? UNIT_STAT_LOGOUT_TIMER : UNIT_STAT_STUNNED) : UNIT_STAT_ROOT);
+
     if (apply)
     {
         addUnitState(state);
 
         if (!IsClientControlled())
             StopMoving();
+
         SendMoveRoot(true);
     }
     else
@@ -12320,7 +12385,7 @@ struct StopAttackFactionHelper
 
 void Unit::StopAttackFaction(uint32 faction_id)
 {
-    if (Unit* victim = getVictim())
+    if (Unit* victim = GetVictim())
     {
         if (victim->GetFactionTemplateEntry()->faction == faction_id)
         {
@@ -12466,7 +12531,7 @@ class UnitVisitObjectsInRangeNotifyEvent : public BasicEvent
             {
                 Creature& creature = static_cast<Creature&>(m_owner);
                 //since visitor was called we override can aggro with true if creature is alive
-                creature.SetCanAggro(creature.isAlive());
+                creature.SetCanAggro(creature.IsAlive());
                 MaNGOS::CreatureVisitObjectsNotifier notify(creature);
                 Cell::VisitAllObjects(&m_owner, notify, radius);
             }
@@ -12818,7 +12883,7 @@ bool Unit::TakePossessOf(Unit* possessed)
     if (possessed->IsImmuneToNPC() != immuneNPC)
         possessed->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
 
-    if (!isInCombat())
+    if (!IsInCombat())
     {
         possessed->GetCombatManager().StopCombatTimer();
         possessed->ClearInCombat();
@@ -12934,32 +12999,6 @@ bool Unit::TakeCharmOf(Unit* charmed, uint32 spellId, bool advertised /*= true*/
             charmInfo->SetCommandState(COMMAND_FOLLOW);
             charmInfo->SetIsRetreating(true);
         }
-
-        if (charmerPlayer && advertised)
-        {
-            if (getClass() == CLASS_WARLOCK)
-            {
-                CreatureInfo const* cinfo = charmedCreature->GetCreatureInfo();
-                if (cinfo && cinfo->CreatureType == CREATURE_TYPE_DEMON)
-                {
-                    // creature with pet number expected have class set
-                    if (charmedCreature->GetByteValue(UNIT_FIELD_BYTES_0, 1) == 0)
-                    {
-                        if (cinfo->UnitClass == 0)
-                            sLog.outErrorDb("Creature (Entry: %u) have UnitClass = 0 but used in charmed spell, that will be result client crash.", cinfo->Entry);
-                        else
-                            sLog.outError("Creature (Entry: %u) have UnitClass = %u but at charming have class 0!!! that will be result client crash.", cinfo->Entry, cinfo->UnitClass);
-
-                        charmedCreature->SetByteValue(UNIT_FIELD_BYTES_0, 1, CLASS_MAGE);
-                    }
-
-                    // just to enable stat window
-                    charmInfo->SetPetNumber(sObjectMgr.GeneratePetNumber(), true);
-                    // if charmed two demons the same session, the 2nd gets the 1st one's name
-                    charmedCreature->SetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP, uint32(time(nullptr)));
-                }
-            }
-        }
     }
 
     // New flags for the duration of charm need to be set after SetCharmState, gets reset in ResetCharmState
@@ -12992,7 +13031,7 @@ bool Unit::TakeCharmOf(Unit* charmed, uint32 spellId, bool advertised /*= true*/
             charmed->AddThreat(enemy, 0.f);
     }
 
-    if (!isInCombat())
+    if (!IsInCombat())
     {
         charmed->GetCombatManager().StopCombatTimer();
         charmed->ClearInCombat();
@@ -13154,7 +13193,7 @@ void Unit::Uncharm(Unit* charmed, uint32 spellId)
             charmed->DeleteCharmInfo();
         }
 
-        charmed->SetTarget(charmed->getVictim());
+        charmed->SetTarget(charmed->GetVictim());
     }
     else if (charmed->GetTypeId() == TYPEID_PLAYER)
     {
@@ -13182,11 +13221,11 @@ void Unit::Uncharm(Unit* charmed, uint32 spellId)
     if (const Player* controllingClientPlayer = charmed->GetClientControlling())
         controllingClientPlayer->UpdateClientControl(charmed, true);
 
-    if (charmed->isAlive()) // must be done after flag update
+    if (charmed->IsAlive()) // must be done after flag update
     {
         if (charmed->CanAttack(this))
         {
-            if (!charmed->isInCombat())
+            if (!charmed->IsInCombat())
                 EngageInCombatWithAggressor(charmed);
             else
             {
@@ -13424,7 +13463,7 @@ Player* Unit::GetNextRandomRaidMember(float radius, AuraType noAuraType)
         if (Player* target = itr->getSource())
         {
             // IsHostileTo check duel and controlled by enemy
-            if (target != this && IsWithinDistInMap(target, radius) && target->isAlive() && CanAssist(target))
+            if (target != this && IsWithinDistInMap(target, radius) && target->IsAlive() && CanAssist(target))
                 nearMembers.push_back(target);
         }
 

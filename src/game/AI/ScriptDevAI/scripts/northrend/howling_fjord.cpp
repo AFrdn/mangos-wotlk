@@ -131,8 +131,8 @@ UnitAI* GetAI_npc_ancient_male_vrykul(Creature* pCreature)
 
 bool AreaTrigger_at_ancient_male_vrykul(Player* pPlayer, AreaTriggerEntry const* /*pAt*/)
 {
-    if (pPlayer->isAlive() && pPlayer->GetQuestStatus(QUEST_ECHO_OF_YMIRON) == QUEST_STATUS_INCOMPLETE &&
-            pPlayer->HasAura(SPELL_ECHO_OF_YMIRON))
+    if (pPlayer->IsAlive() && pPlayer->GetQuestStatus(QUEST_ECHO_OF_YMIRON) == QUEST_STATUS_INCOMPLETE &&
+        pPlayer->HasAura(SPELL_ECHO_OF_YMIRON))
     {
         if (Creature* pCreature = GetClosestCreatureWithEntry(pPlayer, NPC_MALE_VRYKUL, 20.0f))
         {
@@ -223,12 +223,12 @@ struct npc_silvermoon_harryAI : public ScriptedAI
             return;
         }
 
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiScorchTimer < uiDiff)
         {
-            DoCastSpellIfCan(m_creature->getVictim(), SPELL_SCORCH);
+            DoCastSpellIfCan(m_creature->GetVictim(), SPELL_SCORCH);
             m_uiScorchTimer = 10 * IN_MILLISECONDS;
         }
         else
@@ -404,7 +404,7 @@ struct npc_lich_king_villageAI : public ScriptedAI, private DialogueHelper
     {
         if (!m_bEventInProgress && pWho->GetTypeId() == TYPEID_PLAYER)
         {
-            if (pWho->isAlive() && m_creature->IsWithinDistInMap(pWho, 15.0) && pWho->HasAura(SPELL_ECHO_OF_YMIRON))
+            if (pWho->IsAlive() && m_creature->IsWithinDistInMap(pWho, 15.0) && pWho->HasAura(SPELL_ECHO_OF_YMIRON))
             {
                 m_pHeldPlayer = pWho->GetObjectGuid();
                 m_bEventInProgress = true;
@@ -518,8 +518,8 @@ struct npc_king_ymironAI : public ScriptedAI, private DialogueHelper
         if (!m_bEventInit && pWho->GetTypeId() == TYPEID_PLAYER)
         {
             // Get all the citizen around the king for future use
-            if (pWho->isAlive() && m_creature->IsWithinDistInMap(pWho, 60.0) && ((Player*)pWho)->GetQuestStatus(QUEST_ID_ANGUISH_OF_NIFFLEVAR) == QUEST_STATUS_INCOMPLETE
-                    && pWho->HasAura(SPELL_ECHO_OF_YMIRON_NIFFLEVAR))
+            if (pWho->IsAlive() && m_creature->IsWithinDistInMap(pWho, 60.0) && ((Player*)pWho)->GetQuestStatus(QUEST_ID_ANGUISH_OF_NIFFLEVAR) == QUEST_STATUS_INCOMPLETE
+                && pWho->HasAura(SPELL_ECHO_OF_YMIRON_NIFFLEVAR))
             {
                 CreatureList lCrowdList;
                 GetCreatureListWithEntryInGrid(lCrowdList, m_creature, NPC_CITIZEN_OF_NIFFLEVAR_MALE, 60.0f);
@@ -609,7 +609,7 @@ UnitAI* GetAI_npc_king_ymiron(Creature* pCreature)
 
 bool AreaTrigger_at_nifflevar(Player* pPlayer, AreaTriggerEntry const* pAt)
 {
-    if (pPlayer->isAlive() && pPlayer->GetQuestStatus(QUEST_ID_ANGUISH_OF_NIFFLEVAR) == QUEST_STATUS_INCOMPLETE && pPlayer->HasAura(SPELL_ECHO_OF_YMIRON_NIFFLEVAR))
+    if (pPlayer->IsAlive() && pPlayer->GetQuestStatus(QUEST_ID_ANGUISH_OF_NIFFLEVAR) == QUEST_STATUS_INCOMPLETE && pPlayer->HasAura(SPELL_ECHO_OF_YMIRON_NIFFLEVAR))
     {
         if (Creature* pCreature = GetClosestCreatureWithEntry(pPlayer, NPC_KING_YMIRON, 30.0f))
             pCreature->AI()->SendAIEvent(AI_EVENT_CUSTOM_A, pPlayer, pCreature);
@@ -685,7 +685,7 @@ struct npc_firecrackers_bunnyAI : public ScriptedAI
                 do
                 {
                     // check for alive and out of combat only
-                    if ((*batItr)->isAlive() && !(*batItr)->getVictim())
+                    if ((*batItr)->IsAlive() && !(*batItr)->GetVictim())
                         pBat = *batItr;
 
                     ++batItr;
@@ -821,7 +821,7 @@ struct npc_apothecary_hanesAI : public npc_escortAI
 
     void UpdateEscortAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_creature->GetHealthPercent() < 75.0f)

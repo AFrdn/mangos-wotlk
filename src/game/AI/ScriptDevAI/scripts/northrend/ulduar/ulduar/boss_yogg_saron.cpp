@@ -355,8 +355,8 @@ struct boss_saraAI : public Scripted_NoMovementAI, private DialogueHelper
     {
         // start the encounter on range check
         // ToDo: research if there is any intro available before the actual encounter starts
-        if (m_uiPhase == PHASE_INTRO && pWho->GetTypeId() == TYPEID_PLAYER && pWho->isAlive() && !((Player*)pWho)->isGameMaster() &&
-                m_creature->IsWithinDistInMap(pWho, 70.0f) && pWho->IsWithinLOSInMap(m_creature))
+        if (m_uiPhase == PHASE_INTRO && pWho->GetTypeId() == TYPEID_PLAYER && pWho->IsAlive() && !((Player*)pWho)->isGameMaster() &&
+            m_creature->IsWithinDistInMap(pWho, 70.0f) && pWho->IsWithinLOSInMap(m_creature))
         {
             m_uiPhase = PHASE_SARA;
             DoScriptText(SAY_SARA_AGGRO, m_creature);
@@ -547,7 +547,7 @@ struct boss_saraAI : public Scripted_NoMovementAI, private DialogueHelper
                 m_uiSarasSpellTimer -= uiDiff;
         }
 
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiPhase == PHASE_VISIONS)
@@ -687,7 +687,7 @@ struct boss_yogg_saronAI : public Scripted_NoMovementAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         // last phase spells
@@ -1283,7 +1283,7 @@ struct npc_guardian_of_yoggAI : public ScriptedAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiDarkVolleyTimer < uiDiff)
@@ -1354,7 +1354,7 @@ struct npc_immortal_guardianAI : public ScriptedAI
 
     void UpdateAI(const uint32 uiDiff) override
     {
-        if (!m_creature->SelectHostileTarget() || !m_creature->getVictim())
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
             return;
 
         if (m_uiDrainLifeTimer < uiDiff)

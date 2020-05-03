@@ -38,13 +38,17 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (44006,'spell_teleport_self_akilzon');
 
 -- Wotlk
+INSERT INTO spell_scripts(Id, ScriptName) VALUES
+(47028,'spell_taunka_face_me');
 
 -- Hunter
 INSERT INTO spell_scripts(Id, ScriptName) VALUES
-(34026,'spell_kill_command');
+(34026,'spell_kill_command'),
+(34477,'spell_stacking_rules_override');
 
 -- Priest
-
+INSERT INTO spell_scripts(Id, ScriptName) VALUES
+(10060,'spell_stacking_rules_override');
 
 -- Warlock
 INSERT INTO spell_scripts(Id, ScriptName) VALUES
